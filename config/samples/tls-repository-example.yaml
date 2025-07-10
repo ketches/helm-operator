@@ -1,0 +1,30 @@
+# Example of repository with TLS authentication
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: repo-tls-certs
+  namespace: default
+type: Opaque
+data:
+  ca.crt: LS0tLS1CRUdJTi0tLS0t  # base64 encoded CA certificate
+  tls.crt: LS0tLS1CRUdJTi0tLS0t # base64 encoded client certificate
+  tls.key: LS0tLS1CRUdJTi0tLS0t # base64 encoded client private key
+---
+apiVersion: helm-operator.ketches.cn/v1alpha1
+kind: HelmRepository
+metadata:
+  name: tls-repo
+  namespace: default
+spec:
+  url: "https://secure.charts.example.com"
+  type: "helm"
+  interval: "30m"
+  timeout: "10m"
+  auth:
+    tls:
+      insecureSkipVerify: false
+      secretRef:
+        name: "repo-tls-certs"
+        namespace: "default"
+  suspend: false

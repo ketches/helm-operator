@@ -1,0 +1,181 @@
+# Complete monitoring stack example
+---
+# Prometheus
+apiVersion: helm-operator.ketches.cn/v1alpha1
+kind: HelmRelease
+metadata:
+  name: prometheus
+  namespace: monitoring
+spec:
+  chart:
+    name: "kube-prometheus-stack"
+    version: "55.5.0"
+    repository:
+      name: "prometheus-community"
+      namespace: "helm-system"
+  release:
+    name: "prometheus"
+    namespace: "monitoring"
+    createNamespace: true
+  values: |
+    prometheus:
+      prometheusSpec:
+        retention: "30d"
+        storageSpec:
+          volumeClaimTemplate:
+            spec:
+              storageClassName: "gp2"
+              accessModes: ["ReadWriteOnce"]
+              resources:
+                requests:
+                  storage: "50Gi"
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "2Gi"
+          limits:
+            cpu: "2000m"
+            memory: "4Gi"
+    
+    grafana:
+      enabled: true
+      adminPassword: "admin123"
+      persistence:
+        enabled: true
+        size: "10Gi"
+        storageClassName: "gp2"
+      ingress:
+        enabled: true
+        hosts:
+          - "grafana.company.com"
+        tls:
+          - secretName: "grafana-tls"
+            hosts:
+              - "grafana.company.com"
+    
+    alertmanager:
+      alertmanagerSpec:
+        storage:
+          volumeClaimTemplate:
+            spec:
+              storageClassName: "gp2"
+              accessModes: ["ReadWriteOnce"]
+              resources:
+                requests:
+                  storage: "10Gi"
+  install:
+    timeout: "20m"
+    wait: true
+  upgrade:
+    timeout: "20m"
+    wait: true
+  interval: "24h"
+
+---
+# Loki for log aggregation
+apiVersion: helm-operator.ketches.cn/v1alpha1
+kind: HelmRelease
+metadata:
+  name: loki
+  namespace: monitoring
+spec:
+  chart:
+    name: "loki-stack"
+    version: "2.9.11"
+    repository:
+      name: "grafana"
+      namespace: "helm-system"
+  release:
+    name: "loki"
+    namespace: "monitoring"
+    createNamespace: true
+  values: |
+    loki:
+      enabled: true
+      persistence:
+        enabled: true
+        size: "50Gi"
+        storageClassName: "gp2"
+      config:
+        limits_config:
+          retention_period: "744h"  # 31 days
+    
+    promtail:
+      enabled: true
+      config:
+        clients:
+          - url: "http://loki:3100/loki/api/v1/push"
+    
+    fluent-bit:
+      enabled: false
+    
+    filebeat:
+      enabled: false
+  install:
+    timeout: "15m"
+    wait: true
+  upgrade:
+    timeout: "15m"
+    wait: true
+  dependsOn:
+    - name: "prometheus"
+      namespace: "monitoring"
+
+---
+# Jaeger for distributed tracing
+apiVersion: helm-operator.ketches.cn/v1alpha1
+kind: HelmRelease
+metadata:
+  name: jaeger
+  namespace: monitoring
+spec:
+  chart:
+    name: "jaeger"
+    version: "0.71.11"
+    repository:
+      name: "jaegertracing"
+      namespace: "helm-system"
+  release:
+    name: "jaeger"
+    namespace: "monitoring"
+    createNamespace: true
+  values: |
+    provisionDataStore:
+      cassandra: false
+      elasticsearch: true
+    
+    elasticsearch:
+      replicas: 3
+      minimumMasterNodes: 2
+      resources:
+        requests:
+          cpu: "500m"
+          memory: "2Gi"
+        limits:
+          cpu: "1000m"
+          memory: "4Gi"
+      volumeClaimTemplate:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: "gp2"
+        resources:
+          requests:
+            storage: "100Gi"
+    
+    query:
+      ingress:
+        enabled: true
+        hosts:
+          - "jaeger.company.com"
+        tls:
+          - secretName: "jaeger-tls"
+            hosts:
+              - "jaeger.company.com"
+  install:
+    timeout: "20m"
+    wait: true
+  upgrade:
+    timeout: "20m"
+    wait: true
+  dependsOn:
+    - name: "prometheus"
+      namespace: "monitoring"

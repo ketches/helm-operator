@@ -1,0 +1,226 @@
+# Microservices deployment example with dependencies
+---
+# Database service
+apiVersion: helm-operator.ketches.cn/v1alpha1
+kind: HelmRelease
+metadata:
+  name: postgres
+  namespace: database
+spec:
+  chart:
+    name: "postgresql"
+    version: "12.12.10"
+    repository:
+      name: "bitnami"
+      namespace: "helm-system"
+  release:
+    name: "postgres"
+    namespace: "database"
+    createNamespace: true
+  values: |
+    auth:
+      postgresPassword: "secretpassword"
+      database: "myapp"
+    primary:
+      persistence:
+        enabled: true
+        size: "20Gi"
+        storageClass: "gp2"
+    metrics:
+      enabled: true
+  install:
+    timeout: "10m"
+    wait: true
+  upgrade:
+    timeout: "10m"
+    wait: true
+
+---
+# Redis cache service
+apiVersion: helm-operator.ketches.cn/v1alpha1
+kind: HelmRelease
+metadata:
+  name: redis
+  namespace: cache
+spec:
+  chart:
+    name: "redis"
+    version: "18.4.0"
+    repository:
+      name: "bitnami"
+      namespace: "helm-system"
+  release:
+    name: "redis"
+    namespace: "cache"
+    createNamespace: true
+  values: |
+    auth:
+      enabled: false
+    master:
+      persistence:
+        enabled: true
+        size: "8Gi"
+    metrics:
+      enabled: true
+  install:
+    timeout: "10m"
+    wait: true
+  upgrade:
+    timeout: "10m"
+    wait: true
+
+---
+# User service
+apiVersion: helm-operator.ketches.cn/v1alpha1
+kind: HelmRelease
+metadata:
+  name: user-service
+  namespace: microservices
+spec:
+  chart:
+    name: "microservice"
+    version: "1.0.0"
+    repository:
+      name: "company-repo"
+      namespace: "helm-system"
+  release:
+    name: "user-service"
+    namespace: "microservices"
+    createNamespace: true
+  values: |
+    service:
+      name: "user-service"
+      port: 8080
+    image:
+      repository: "company/user-service"
+      tag: "v1.2.0"
+    env:
+      - name: "DATABASE_URL"
+        value: "postgresql://postgres:secretpassword@postgres.database.svc.cluster.local:5432/myapp"
+      - name: "REDIS_URL"
+        value: "redis://redis.cache.svc.cluster.local:6379"
+    resources:
+      requests:
+        cpu: "200m"
+        memory: "256Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+  install:
+    timeout: "10m"
+    wait: true
+  upgrade:
+    timeout: "10m"
+    wait: true
+  dependsOn:
+    - name: "postgres"
+      namespace: "database"
+    - name: "redis"
+      namespace: "cache"
+
+---
+# Order service
+apiVersion: helm-operator.ketches.cn/v1alpha1
+kind: HelmRelease
+metadata:
+  name: order-service
+  namespace: microservices
+spec:
+  chart:
+    name: "microservice"
+    version: "1.0.0"
+    repository:
+      name: "company-repo"
+      namespace: "helm-system"
+  release:
+    name: "order-service"
+    namespace: "microservices"
+    createNamespace: true
+  values: |
+    service:
+      name: "order-service"
+      port: 8080
+    image:
+      repository: "company/order-service"
+      tag: "v1.1.0"
+    env:
+      - name: "DATABASE_URL"
+        value: "postgresql://postgres:secretpassword@postgres.database.svc.cluster.local:5432/myapp"
+      - name: "USER_SERVICE_URL"
+        value: "http://user-service.microservices.svc.cluster.local:8080"
+    resources:
+      requests:
+        cpu: "200m"
+        memory: "256Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+  install:
+    timeout: "10m"
+    wait: true
+  upgrade:
+    timeout: "10m"
+    wait: true
+  dependsOn:
+    - name: "postgres"
+      namespace: "database"
+    - name: "user-service"
+      namespace: "microservices"
+
+---
+# API Gateway
+apiVersion: helm-operator.ketches.cn/v1alpha1
+kind: HelmRelease
+metadata:
+  name: api-gateway
+  namespace: gateway
+spec:
+  chart:
+    name: "nginx"
+    version: "15.4.4"
+    repository:
+      name: "bitnami"
+      namespace: "helm-system"
+  release:
+    name: "api-gateway"
+    namespace: "gateway"
+    createNamespace: true
+  values: |
+    replicaCount: 3
+    service:
+      type: "LoadBalancer"
+      port: 80
+    ingress:
+      enabled: true
+      hosts:
+        - host: "api.company.com"
+          paths:
+            - path: "/users"
+              pathType: "Prefix"
+              backend:
+                service:
+                  name: "user-service"
+                  port:
+                    number: 8080
+            - path: "/orders"
+              pathType: "Prefix"
+              backend:
+                service:
+                  name: "order-service"
+                  port:
+                    number: 8080
+      tls:
+        - secretName: "api-tls"
+          hosts:
+            - "api.company.com"
+  install:
+    timeout: "10m"
+    wait: true
+  upgrade:
+    timeout: "10m"
+    wait: true
+  dependsOn:
+    - name: "user-service"
+      namespace: "microservices"
+    - name: "order-service"
+      namespace: "microservices"

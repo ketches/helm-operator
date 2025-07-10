@@ -1,0 +1,14 @@
+apiVersion: helm-operator.ketches.cn/v1alpha1
+kind: HelmRepository
+metadata:
+  labels:
+    app.kubernetes.io/name: helm-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: mycharts
+  namespace: default
+spec:
+  url: "https://poneding.github.io/helm-charts"
+  type: "helm"
+  interval: "30m"
+  timeout: "5m"
+  suspend: false

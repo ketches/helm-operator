@@ -1,0 +1,102 @@
+# Canary deployment example with stable and canary versions
+---
+# Stable version
+apiVersion: helm-operator.ketches.cn/v1alpha1
+kind: HelmRelease
+metadata:
+  name: myapp-stable
+  namespace: default
+spec:
+  chart:
+    name: "myapp"
+    version: "1.0.0"
+    repository:
+      name: "company-repo"
+      namespace: "helm-system"
+  release:
+    name: "myapp-stable"
+    namespace: "default"
+    createNamespace: true
+  values: |
+    nameOverride: "myapp-stable"
+    fullnameOverride: "myapp-stable"
+    replicaCount: 8
+    image:
+      tag: "v1.0.0"
+    service:
+      name: "myapp-stable"
+      selector:
+        version: "stable"
+    labels:
+      version: "stable"
+    podLabels:
+      version: "stable"
+    ingress:
+      enabled: true
+      annotations:
+        nginx.ingress.kubernetes.io/canary: "false"
+      hosts:
+        - host: "myapp.example.com"
+          paths:
+            - path: "/"
+              pathType: "Prefix"
+  install:
+    timeout: "15m"
+    wait: true
+  upgrade:
+    timeout: "15m"
+    wait: true
+  interval: "2h"
+
+---
+# Canary version (10% traffic)
+apiVersion: helm-operator.ketches.cn/v1alpha1
+kind: HelmRelease
+metadata:
+  name: myapp-canary
+  namespace: default
+spec:
+  chart:
+    name: "myapp"
+    version: "1.1.0"
+    repository:
+      name: "company-repo"
+      namespace: "helm-system"
+  release:
+    name: "myapp-canary"
+    namespace: "default"
+    createNamespace: true
+  values: |
+    nameOverride: "myapp-canary"
+    fullnameOverride: "myapp-canary"
+    replicaCount: 2
+    image:
+      tag: "v1.1.0"
+    service:
+      name: "myapp-canary"
+      selector:
+        version: "canary"
+    labels:
+      version: "canary"
+    podLabels:
+      version: "canary"
+    ingress:
+      enabled: true
+      annotations:
+        nginx.ingress.kubernetes.io/canary: "true"
+        nginx.ingress.kubernetes.io/canary-weight: "10"
+      hosts:
+        - host: "myapp.example.com"
+          paths:
+            - path: "/"
+              pathType: "Prefix"
+  install:
+    timeout: "15m"
+    wait: true
+  upgrade:
+    timeout: "15m"
+    wait: true
+  interval: "1h"
+  dependsOn:
+    - name: "myapp-stable"
+      namespace: "default"

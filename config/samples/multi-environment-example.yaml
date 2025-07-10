@@ -1,0 +1,153 @@
+# Multi-environment deployment example
+---
+# Development environment
+apiVersion: helm-operator.ketches.cn/v1alpha1
+kind: HelmRelease
+metadata:
+  name: myapp-dev
+  namespace: development
+spec:
+  chart:
+    name: "myapp"
+    version: "1.0.0"
+    repository:
+      name: "company-repo"
+      namespace: "helm-system"
+  release:
+    name: "myapp-dev"
+    namespace: "development"
+    createNamespace: true
+  values: |
+    environment: "development"
+    replicaCount: 1
+    image:
+      tag: "dev-latest"
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+    ingress:
+      enabled: true
+      hosts:
+        - host: "myapp-dev.company.com"
+    database:
+      host: "postgres-dev.database.svc.cluster.local"
+  install:
+    timeout: "10m"
+    wait: true
+  upgrade:
+    timeout: "10m"
+    wait: true
+  interval: "30m"
+
+---
+# Staging environment
+apiVersion: helm-operator.ketches.cn/v1alpha1
+kind: HelmRelease
+metadata:
+  name: myapp-staging
+  namespace: staging
+spec:
+  chart:
+    name: "myapp"
+    version: "1.0.0"
+    repository:
+      name: "company-repo"
+      namespace: "helm-system"
+  release:
+    name: "myapp-staging"
+    namespace: "staging"
+    createNamespace: true
+  values: |
+    environment: "staging"
+    replicaCount: 2
+    image:
+      tag: "v1.0.0-rc1"
+    resources:
+      requests:
+        cpu: "200m"
+        memory: "256Mi"
+      limits:
+        cpu: "1000m"
+        memory: "1Gi"
+    ingress:
+      enabled: true
+      hosts:
+        - host: "myapp-staging.company.com"
+    database:
+      host: "postgres-staging.database.svc.cluster.local"
+  install:
+    timeout: "15m"
+    wait: true
+    waitForJobs: true
+  upgrade:
+    timeout: "15m"
+    wait: true
+    cleanupOnFail: true
+  interval: "1h"
+
+---
+# Production environment
+apiVersion: helm-operator.ketches.cn/v1alpha1
+kind: HelmRelease
+metadata:
+  name: myapp-prod
+  namespace: production
+spec:
+  chart:
+    name: "myapp"
+    version: "1.0.0"
+    repository:
+      name: "company-repo"
+      namespace: "helm-system"
+  release:
+    name: "myapp-prod"
+    namespace: "production"
+    createNamespace: true
+  values: |
+    environment: "production"
+    replicaCount: 5
+    image:
+      tag: "v1.0.0"
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "512Mi"
+      limits:
+        cpu: "2000m"
+        memory: "2Gi"
+    autoscaling:
+      enabled: true
+      minReplicas: 5
+      maxReplicas: 20
+      targetCPUUtilizationPercentage: 70
+    ingress:
+      enabled: true
+      hosts:
+        - host: "myapp.company.com"
+      tls:
+        - secretName: "myapp-tls"
+          hosts:
+            - "myapp.company.com"
+    database:
+      host: "postgres-prod.database.svc.cluster.local"
+    monitoring:
+      enabled: true
+      serviceMonitor: true
+  install:
+    timeout: "20m"
+    wait: true
+    waitForJobs: true
+  upgrade:
+    timeout: "20m"
+    wait: true
+    waitForJobs: true
+    cleanupOnFail: true
+    maxHistory: 10
+  interval: "6h"
+  dependsOn:
+    - name: "postgres-prod"
+      namespace: "database"
