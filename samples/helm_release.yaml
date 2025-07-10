@@ -1,0 +1,32 @@
+apiVersion: helm-operator.ketches.cn/v1alpha1
+kind: HelmRelease
+metadata:
+  name: nginx
+  namespace: default
+spec:
+  chart:
+    name: "nginx"
+    version: "1.0.0"
+    repository:
+      name: "helm-operator-charts"
+      namespace: "default"
+  release:
+    name: "nginx"
+    namespace: "default"
+    createNamespace: true
+  values: |
+    replicaCount: 2
+    image:
+      repository: nginx
+      pullPolicy: IfNotPresent
+      tag: "1.24.0"
+  install:
+    timeout: "10m"
+    wait: true
+    waitForJobs: true
+  upgrade:
+    timeout: "10m"
+    wait: true
+    cleanupOnFail: true
+  interval: "1h"
+  suspend: false

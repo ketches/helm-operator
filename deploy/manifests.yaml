@@ -1,0 +1,78 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ketches
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: helm-operator
+  namespace: ketches
+  labels:
+    ketches.cn/owned: "true"
+    app.ketches.cn/name: helm-operator
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: helm-operator
+  labels:
+    ketches.cn/owned: "true"
+    app.ketches.cn/name: helm-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- kind: ServiceAccount
+  name: helm-operator
+  namespace: ketches
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: helm-operator
+  namespace: ketches
+  labels:
+    ketches.cn/owned: "true"
+    app.ketches.cn/name: helm-operator
+spec:
+  selector:
+    matchLabels:
+      app.ketches.cn/name: helm-operator
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app.ketches.cn/name: helm-operator
+    spec:
+      containers:
+      - args:
+          - --leader-elect
+        image: ketches/helm-operator:latest
+        name: helm-operator
+        ports: 
+        - containerPort: 8081
+          name: probe
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          limits:
+            cpu: "1"
+            memory: 1Gi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+      serviceAccountName: helm-operator
+      terminationGracePeriodSeconds: 10

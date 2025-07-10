@@ -1,0 +1,11 @@
+apiVersion: helm-operator.ketches.cn/v1alpha1
+kind: HelmRepository
+metadata:
+  name: helm-operator-charts
+  namespace: default
+spec:
+  url: "https://ketches.github.io/helm-operator"
+  type: "helm"
+  interval: "30m"
+  timeout: "5m"
+  suspend: false
