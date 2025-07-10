@@ -31,6 +31,15 @@ func (c *helmClient) AddRepository(ctx context.Context, entry *repo.Entry) error
 	// Get the repository file path
 	repoFile := c.settings.RepositoryConfig
 
+	// Ensure parent directory exists
+	if err := os.MkdirAll(filepath.Dir(repoFile), os.ModePerm); err != nil {
+		return fmt.Errorf("failed to create repository config directory: %w", err)
+	} else {
+		if err := os.WriteFile(repoFile, []byte{}, 0644); err != nil {
+			return fmt.Errorf("failed to create repository config file: %w", err)
+		}
+	}
+
 	// Load existing repositories
 	f, err := repo.LoadFile(repoFile)
 	if os.IsNotExist(err) {

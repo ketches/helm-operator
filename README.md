@@ -94,14 +94,14 @@ Helm Operator provides a declarative way to manage Helm repositories and release
 1. **Install CRDs:**
 
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/ketches/helm-operator/main/config/crd/bases/helm-operator.ketches.cn_helmrepositories.yaml
-kubectl apply -f https://raw.githubusercontent.com/ketches/helm-operator/main/config/crd/bases/helm-operator.ketches.cn_helmreleases.yaml
+kubectl apply -f https://raw.githubusercontent.com/ketches/helm-operator/master/deploy/crds/helm-operator.ketches.cn_helmrepositories.yaml
+kubectl apply -f https://raw.githubusercontent.com/ketches/helm-operator/master/deploy/crds/helm-operator.ketches.cn_helmreleases.yaml
 ```
 
 2. **Deploy the Operator:**
 
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/ketches/helm-operator/main/config/default/
+kubectl apply -f https://raw.githubusercontent.com/ketches/helm-operator/master/deploy/manifests.yaml
 ```
 
 3. **Verify Installation:**
@@ -199,7 +199,7 @@ make docker-push IMG=your-registry/helm-operator:tag
 ### Deploying to Cluster
 
 ```bash
-make deploy IMG=your-registry/helm-operator:tag
+make deploy
 ```
 
 ## Configuration

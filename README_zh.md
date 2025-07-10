@@ -94,14 +94,14 @@ Helm Operator 提供了一种声明式的方式来管理 Kubernetes 集群中的
 1. **安装 CRDs:**
 
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/ketches/helm-operator/main/config/crd/bases/helm-operator.ketches.cn_helmrepositories.yaml
-kubectl apply -f https://raw.githubusercontent.com/ketches/helm-operator/main/config/crd/bases/helm-operator.ketches.cn_helmreleases.yaml
+kubectl apply -f https://raw.githubusercontent.com/ketches/helm-operator/master/deploy/crds/helm-operator.ketches.cn_helmrepositories.yaml
+kubectl apply -f https://raw.githubusercontent.com/ketches/helm-operator/master/deploy/crds/helm-operator.ketches.cn_helmreleases.yaml
 ```
 
 2. **部署 Operator:**
 
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/ketches/helm-operator/main/config/default/
+kubectl apply -f https://raw.githubusercontent.com/ketches/helm-operator/master/deploy/manifests.yaml
 ```
 
 3. **验证安装:**
@@ -199,7 +199,7 @@ make docker-push IMG=your-registry/helm-operator:tag
 ### 部署到集群
 
 ```bash
-make deploy IMG=your-registry/helm-operator:tag
+make deploy
 ```
 
 ## 配置
