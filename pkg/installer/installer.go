@@ -54,7 +54,7 @@ func (i *HelmOperatorInstaller) applyResource(ctx context.Context, resourceYAML 
 	// Parse YAML to unstructured object
 	obj := &unstructured.Unstructured{}
 	decoder := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
-	
+
 	if _, _, err := decoder.Decode([]byte(resourceYAML), nil, obj); err != nil {
 		return fmt.Errorf("failed to decode YAML: %w", err)
 	}
@@ -82,7 +82,7 @@ func (i *HelmOperatorInstaller) deleteResource(ctx context.Context, resourceYAML
 	// Parse YAML to unstructured object
 	obj := &unstructured.Unstructured{}
 	decoder := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
-	
+
 	if _, _, err := decoder.Decode([]byte(resourceYAML), nil, obj); err != nil {
 		return fmt.Errorf("failed to decode YAML: %w", err)
 	}
@@ -111,14 +111,14 @@ func (i *HelmOperatorInstaller) GetStatus(ctx context.Context) (*InstallationSta
 		// Parse YAML to get resource info
 		obj := &unstructured.Unstructured{}
 		decoder := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
-		
+
 		if _, _, err := decoder.Decode([]byte(resourceYAML), nil, obj); err != nil {
 			status.Resources = append(status.Resources, ResourceStatus{
-				Index:   idx,
-				Kind:    "Unknown",
-				Name:    "Unknown",
-				Exists:  false,
-				Error:   err.Error(),
+				Index:  idx,
+				Kind:   "Unknown",
+				Name:   "Unknown",
+				Exists: false,
+				Error:  err.Error(),
 			})
 			status.Installed = false
 			continue
@@ -128,7 +128,7 @@ func (i *HelmOperatorInstaller) GetStatus(ctx context.Context) (*InstallationSta
 		existing := &unstructured.Unstructured{}
 		existing.SetGroupVersionKind(obj.GetObjectKind().GroupVersionKind())
 		err := i.client.Get(ctx, client.ObjectKeyFromObject(obj), existing)
-		
+
 		resourceStatus := ResourceStatus{
 			Index:     idx,
 			Kind:      obj.GetKind(),
@@ -143,7 +143,7 @@ func (i *HelmOperatorInstaller) GetStatus(ctx context.Context) (*InstallationSta
 		}
 
 		status.Resources = append(status.Resources, resourceStatus)
-		
+
 		if !resourceStatus.Exists {
 			status.Installed = false
 		}

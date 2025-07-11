@@ -637,7 +637,7 @@ func (r *HelmRepositoryReconciler) removeFinalizerWithRetry(ctx context.Context,
 
 		// Remove finalizer from the latest version
 		controllerutil.RemoveFinalizer(latest, utils.HelmRepositoryFinalizer)
-		
+
 		// Update the resource
 		return r.Update(ctx, latest)
 	})

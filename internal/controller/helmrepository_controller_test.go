@@ -32,7 +32,7 @@ import (
 
 var _ = Describe("HelmRepository Controller", func() {
 	Context("When reconciling a resource", func() {
-		const resourceName = "test-resource"
+		const resourceName = "test-helm-operator-charts"
 
 		ctx := context.Background()
 
@@ -51,7 +51,12 @@ var _ = Describe("HelmRepository Controller", func() {
 						Name:      resourceName,
 						Namespace: "default",
 					},
-					// TODO(user): Specify other spec details if needed.
+					Spec: helmoperatorv1alpha1.HelmRepositorySpec{
+						URL:      "https://ketches.github.io/helm-operator",
+						Type:     "helm",
+						Interval: "30m",
+						Timeout:  "5m",
+					},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 			}

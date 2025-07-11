@@ -114,7 +114,7 @@ func debugLog(settings *cli.EnvSettings) action.DebugLog {
 	if settings.Debug {
 		return func(format string, v ...any) {
 			format = fmt.Sprintf("[debug] %s\n", format)
-			log.Output(2, fmt.Sprintf(format, v...))
+			_ = log.Output(2, fmt.Sprintf(format, v...))
 		}
 	}
 	return func(format string, v ...interface{}) {}

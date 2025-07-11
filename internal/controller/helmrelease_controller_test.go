@@ -32,7 +32,7 @@ import (
 
 var _ = Describe("HelmRelease Controller", func() {
 	Context("When reconciling a resource", func() {
-		const resourceName = "test-resource"
+		const resourceName = "test-nginx"
 
 		ctx := context.Background()
 
@@ -51,7 +51,32 @@ var _ = Describe("HelmRelease Controller", func() {
 						Name:      resourceName,
 						Namespace: "default",
 					},
-					// TODO(user): Specify other spec details if needed.
+					Spec: helmoperatorv1alpha1.HelmReleaseSpec{
+						Chart: helmoperatorv1alpha1.ChartSpec{
+							Name:    "nginx",
+							Version: "0.1.0",
+							Repository: &helmoperatorv1alpha1.RepositoryReference{
+								Name:      "test-helm-operator-charts",
+								Namespace: "default",
+							},
+						},
+						Release: &helmoperatorv1alpha1.ReleaseSpec{
+							Name:      "test-nginx",
+							Namespace: "default",
+						},
+						Values: `replicaCount: 1`,
+						Install: &helmoperatorv1alpha1.InstallSpec{
+							Timeout:     "10m",
+							Wait:        true,
+							WaitForJobs: true,
+						},
+						Upgrade: &helmoperatorv1alpha1.UpgradeSpec{
+							Timeout:       "10m",
+							Wait:          true,
+							CleanupOnFail: true,
+						},
+						Interval: "30m",
+					},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 			}

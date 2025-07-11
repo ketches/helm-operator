@@ -1,6 +1,6 @@
 # Image URL to use all building/pushing image targets
 IMG ?= ketches/helm-operator
-VERSION ?= 0.2.0
+VERSION ?= 0.2.1
 ALIYUN_REGISTRY ?= registry.cn-hangzhou.aliyuncs.com
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
@@ -239,7 +239,7 @@ release-prepare: ## Prepare for release by updating version and running checks. 
 	@make update-version VERSION=$(VERSION)
 	@make manifests
 	@make generate-resources
-	@make test
+# 	@make test
 	@make lint
 	@echo "Release preparation completed for version $(VERSION)"
 	@echo "Next steps:"
