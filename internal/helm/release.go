@@ -33,7 +33,13 @@ import (
 
 // InstallRelease installs a new Helm release
 func (c *helmClient) InstallRelease(ctx context.Context, req *InstallRequest) (*ReleaseInfo, error) {
-	install := action.NewInstall(c.config)
+	// Create action configuration for the target namespace
+	config, err := c.getActionConfig(req.Namespace)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create action config for namespace %s: %w", req.Namespace, err)
+	}
+	
+	install := action.NewInstall(config)
 
 	// Configure install action
 	install.ReleaseName = req.Name
@@ -76,7 +82,13 @@ func (c *helmClient) InstallRelease(ctx context.Context, req *InstallRequest) (*
 
 // UpgradeRelease upgrades an existing Helm release
 func (c *helmClient) UpgradeRelease(ctx context.Context, req *UpgradeRequest) (*ReleaseInfo, error) {
-	upgrade := action.NewUpgrade(c.config)
+	// Create action configuration for the target namespace
+	config, err := c.getActionConfig(req.Namespace)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create action config for namespace %s: %w", req.Namespace, err)
+	}
+	
+	upgrade := action.NewUpgrade(config)
 
 	// Configure upgrade action
 	upgrade.Namespace = req.Namespace
@@ -121,7 +133,13 @@ func (c *helmClient) UpgradeRelease(ctx context.Context, req *UpgradeRequest) (*
 
 // UninstallRelease uninstalls a Helm release
 func (c *helmClient) UninstallRelease(ctx context.Context, req *UninstallRequest) error {
-	uninstall := action.NewUninstall(c.config)
+	// Create action configuration for the target namespace
+	config, err := c.getActionConfig(req.Namespace)
+	if err != nil {
+		return fmt.Errorf("failed to create action config for namespace %s: %w", req.Namespace, err)
+	}
+	
+	uninstall := action.NewUninstall(config)
 
 	// Configure uninstall action
 	uninstall.Timeout = req.Timeout
@@ -129,8 +147,7 @@ func (c *helmClient) UninstallRelease(ctx context.Context, req *UninstallRequest
 	uninstall.KeepHistory = req.KeepHistory
 
 	// Uninstall release
-	_, err := uninstall.Run(req.Name)
-	if err != nil {
+	if _, err := uninstall.Run(req.Name); err != nil {
 		return fmt.Errorf("failed to uninstall release: %w", err)
 	}
 
@@ -139,7 +156,13 @@ func (c *helmClient) UninstallRelease(ctx context.Context, req *UninstallRequest
 
 // GetRelease returns information about a specific release
 func (c *helmClient) GetRelease(ctx context.Context, name, namespace string) (*ReleaseInfo, error) {
-	get := action.NewGet(c.config)
+	// Create action configuration for the target namespace
+	config, err := c.getActionConfig(namespace)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create action config for namespace %s: %w", namespace, err)
+	}
+	
+	get := action.NewGet(config)
 
 	rel, err := get.Run(name)
 	if err != nil {
@@ -151,7 +174,13 @@ func (c *helmClient) GetRelease(ctx context.Context, name, namespace string) (*R
 
 // ListReleases returns all releases in a namespace
 func (c *helmClient) ListReleases(ctx context.Context, namespace string) ([]*ReleaseInfo, error) {
-	list := action.NewList(c.config)
+	// Create action configuration for the target namespace
+	config, err := c.getActionConfig(namespace)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create action config for namespace %s: %w", namespace, err)
+	}
+	
+	list := action.NewList(config)
 
 	// Configure list action
 	if namespace != "" {
@@ -173,7 +202,13 @@ func (c *helmClient) ListReleases(ctx context.Context, namespace string) ([]*Rel
 
 // GetReleaseHistory returns the history of a release
 func (c *helmClient) GetReleaseHistory(ctx context.Context, name, namespace string) ([]*ReleaseInfo, error) {
-	history := action.NewHistory(c.config)
+	// Create action configuration for the target namespace
+	config, err := c.getActionConfig(namespace)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create action config for namespace %s: %w", namespace, err)
+	}
+	
+	history := action.NewHistory(config)
 
 	releases, err := history.Run(name)
 	if err != nil {
@@ -257,7 +292,13 @@ func (c *helmClient) convertRelease(rel *release.Release) *ReleaseInfo {
 
 // GetReleaseValues returns the values for a specific release
 func (c *helmClient) GetReleaseValues(ctx context.Context, name, namespace string) (string, error) {
-	getValues := action.NewGetValues(c.config)
+	// Create action configuration for the target namespace
+	config, err := c.getActionConfig(namespace)
+	if err != nil {
+		return "", fmt.Errorf("failed to create action config for namespace %s: %w", namespace, err)
+	}
+	
+	getValues := action.NewGetValues(config)
 
 	values, err := getValues.Run(name)
 	if err != nil {
@@ -274,7 +315,13 @@ func (c *helmClient) GetReleaseValues(ctx context.Context, name, namespace strin
 
 // GetReleaseManifest returns the manifest for a specific release
 func (c *helmClient) GetReleaseManifest(ctx context.Context, name, namespace string) (string, error) {
-	get := action.NewGet(c.config)
+	// Create action configuration for the target namespace
+	config, err := c.getActionConfig(namespace)
+	if err != nil {
+		return "", fmt.Errorf("failed to create action config for namespace %s: %w", namespace, err)
+	}
+	
+	get := action.NewGet(config)
 
 	rel, err := get.Run(name)
 	if err != nil {
@@ -286,11 +333,16 @@ func (c *helmClient) GetReleaseManifest(ctx context.Context, name, namespace str
 
 // RollbackRelease rolls back a release to a previous revision
 func (c *helmClient) RollbackRelease(ctx context.Context, name, namespace string, revision int) (*ReleaseInfo, error) {
-	rollback := action.NewRollback(c.config)
+	// Create action configuration for the target namespace
+	config, err := c.getActionConfig(namespace)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create action config for namespace %s: %w", namespace, err)
+	}
+	
+	rollback := action.NewRollback(config)
 	rollback.Version = revision
 
-	err := rollback.Run(name)
-	if err != nil {
+	if err := rollback.Run(name); err != nil {
 		return nil, fmt.Errorf("failed to rollback release: %w", err)
 	}
 
@@ -300,11 +352,16 @@ func (c *helmClient) RollbackRelease(ctx context.Context, name, namespace string
 
 // TestRelease runs tests for a release
 func (c *helmClient) TestRelease(ctx context.Context, name, namespace string, timeout time.Duration) error {
-	test := action.NewReleaseTesting(c.config)
+	// Create action configuration for the target namespace
+	config, err := c.getActionConfig(namespace)
+	if err != nil {
+		return fmt.Errorf("failed to create action config for namespace %s: %w", namespace, err)
+	}
+	
+	test := action.NewReleaseTesting(config)
 	test.Timeout = timeout
 
-	_, err := test.Run(name)
-	if err != nil {
+	if _, err := test.Run(name); err != nil {
 		return fmt.Errorf("failed to test release: %w", err)
 	}
 

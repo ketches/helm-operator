@@ -59,7 +59,6 @@ type ReleaseManager interface {
 // helmClient implements the Client interface
 type helmClient struct {
 	settings  *cli.EnvSettings
-	config    *action.Configuration
 	repoCache *repositoryCache
 }
 
@@ -71,28 +70,15 @@ type repositoryCache struct {
 }
 
 // NewClient creates a new Helm client
-func NewClient(namespace string) (Client, error) {
+func NewClient() (Client, error) {
 	settings := cli.New()
 
 	if err := ensureRepoFile(settings); err != nil {
 		return nil, fmt.Errorf("failed to ensure repository file: %w", err)
 	}
 
-	config := new(action.Configuration)
-
-	// Initialize with proper storage driver and debug function
-	if err := config.Init(settings.RESTClientGetter(), namespace, "secrets", debugLog(settings)); err != nil {
-		return nil, fmt.Errorf("failed to initialize Helm configuration: %w", err)
-	}
-
-	// Validate that the configuration was properly initialized
-	if config.KubeClient == nil {
-		return nil, fmt.Errorf("kubernetes client not initialized in Helm configuration")
-	}
-
 	return &helmClient{
 		settings:  settings,
-		config:    config,
 		repoCache: &repositoryCache{},
 	}, nil
 }
@@ -115,22 +101,9 @@ func ensureRepoFile(settings *cli.EnvSettings) error {
 }
 
 // NewClientWithSettings creates a new Helm client with custom settings
-func NewClientWithSettings(settings *cli.EnvSettings, namespace string) (Client, error) {
-	config := new(action.Configuration)
-
-	// Initialize with proper storage driver and debug function
-	if err := config.Init(settings.RESTClientGetter(), namespace, "secrets", debugLog(settings)); err != nil {
-		return nil, fmt.Errorf("failed to initialize Helm configuration: %w", err)
-	}
-
-	// Validate that the configuration was properly initialized
-	if config.KubeClient == nil {
-		return nil, fmt.Errorf("kubernetes client not initialized in Helm configuration")
-	}
-
+func NewClientWithSettings(settings *cli.EnvSettings) (Client, error) {
 	return &helmClient{
 		settings:  settings,
-		config:    config,
 		repoCache: &repositoryCache{},
 	}, nil
 }
@@ -143,6 +116,23 @@ func debugLog(settings *cli.EnvSettings) action.DebugLog {
 		}
 	}
 	return func(format string, v ...interface{}) {}
+}
+
+// getActionConfig creates a new action configuration for the specified namespace
+func (c *helmClient) getActionConfig(namespace string) (*action.Configuration, error) {
+	config := new(action.Configuration)
+
+	// Initialize with proper storage driver and debug function
+	if err := config.Init(c.settings.RESTClientGetter(), namespace, "secrets", debugLog(c.settings)); err != nil {
+		return nil, fmt.Errorf("failed to initialize Helm configuration for namespace %s: %w", namespace, err)
+	}
+
+	// Validate that the configuration was properly initialized
+	if config.KubeClient == nil {
+		return nil, fmt.Errorf("kubernetes client not initialized in Helm configuration for namespace %s", namespace)
+	}
+
+	return config, nil
 }
 
 // InstallRequest contains parameters for installing a release

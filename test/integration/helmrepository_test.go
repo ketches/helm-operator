@@ -83,7 +83,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 
 	// Create Helm client
-	helmClient, err := helm.NewClient("default")
+	helmClient, err := helm.NewClient()
 	Expect(err).ToNot(HaveOccurred())
 
 	// Setup HelmRepository controller

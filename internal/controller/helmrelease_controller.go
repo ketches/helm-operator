@@ -710,6 +710,7 @@ func isReleaseNotFoundError(err error) bool {
 func (r *HelmReleaseReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&helmoperatorv1alpha1.HelmRelease{}).
+		For(&helmoperatorv1alpha1.HelmRepository{}).
 		Named("helmrelease").
 		Complete(r)
 }
