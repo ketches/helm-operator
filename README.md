@@ -187,7 +187,7 @@ make test     # Run tests
 ### Building Docker Image Locally
 
 ```bash
-make docker-build-local IMG=helm-operator TAG=dev
+make docker-build-local IMG=helm-operator VERSION=dev
 ```
 
 ### Deploying to Cluster

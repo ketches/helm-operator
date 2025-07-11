@@ -187,7 +187,7 @@ make test     # 运行测试
 ### 构建本地 Docker 镜像
 
 ```bash
-make docker-build-local IMG=helm-operator TAG=dev
+make docker-build-local IMG=helm-operator VERSION=dev
 ```
 
 ### 部署到集群
