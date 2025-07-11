@@ -210,3 +210,111 @@ mv $(1) $(1)-$(3) ;\
 } ;\
 ln -sf $(1)-$(3) $(1)
 endef
+
+##@ Release Management
+
+.PHONY: update-version
+update-version: ## Update version across all files. Usage: make update-version VERSION=0.3.0
+	@if [ -z "$(VERSION)" ]; then \
+		echo "Error: VERSION is required. Usage: make update-version VERSION=0.3.0"; \
+		exit 1; \
+	fi
+	@echo "Updating version to $(VERSION)..."
+	@chmod +x scripts/update-version.sh
+	@./scripts/update-version.sh $(VERSION)
+
+.PHONY: release-prepare
+release-prepare: ## Prepare for release by updating version and running checks. Usage: make release-prepare VERSION=0.3.0
+	@if [ -z "$(VERSION)" ]; then \
+		echo "Error: VERSION is required. Usage: make release-prepare VERSION=0.3.0"; \
+		exit 1; \
+	fi
+	@echo "Preparing release $(VERSION)..."
+	@make update-version VERSION=$(VERSION)
+	@make manifests
+	@make test
+	@make lint
+	@echo "Release preparation completed for version $(VERSION)"
+	@echo "Next steps:"
+	@echo "1. Review changes: git diff"
+	@echo "2. Commit: git add . && git commit -m 'chore: bump version to $(VERSION)'"
+	@echo "3. Tag: git tag -a v$(VERSION) -m 'Release v$(VERSION)'"
+	@echo "4. Push: git push origin main && git push origin v$(VERSION)"
+
+.PHONY: release-tag
+release-tag: ## Create and push git tag. Usage: make release-tag VERSION=0.3.0 MESSAGE="Release notes"
+	@if [ -z "$(VERSION)" ]; then \
+		echo "Error: VERSION is required. Usage: make release-tag VERSION=0.3.0"; \
+		exit 1; \
+	fi
+	@if [ -z "$(MESSAGE)" ]; then \
+		MESSAGE="Release v$(VERSION)"; \
+	fi
+	@echo "Creating tag v$(VERSION)..."
+	@git tag -a v$(VERSION) -m "$(MESSAGE)"
+	@git push origin v$(VERSION)
+	@echo "Tag v$(VERSION) created and pushed successfully"
+
+.PHONY: helm-package
+helm-package: ## Package the Helm chart
+	@echo "Packaging Helm chart..."
+	@helm package charts/helm-operator
+	@echo "Helm chart packaged successfully"
+
+.PHONY: generate-changelog
+generate-changelog: ## Generate changelog between tags. Usage: make generate-changelog FROM=v0.1.0 TO=v0.2.0
+	@chmod +x scripts/generate-changelog.sh
+	@if [ -n "$(FROM)" ] && [ -n "$(TO)" ]; then \
+		./scripts/generate-changelog.sh $(FROM) $(TO); \
+	elif [ -n "$(TO)" ]; then \
+		./scripts/generate-changelog.sh $(TO); \
+	else \
+		./scripts/generate-changelog.sh; \
+	fi
+
+.PHONY: generate-release-notes
+generate-release-notes: ## Generate GitHub release notes. Usage: make generate-release-notes FROM=v0.1.0 TO=v0.2.0
+	@chmod +x scripts/generate-release-notes.sh
+	@if [ -n "$(FROM)" ] && [ -n "$(TO)" ]; then \
+		./scripts/generate-release-notes.sh $(FROM) $(TO); \
+	elif [ -n "$(TO)" ]; then \
+		./scripts/generate-release-notes.sh $(TO); \
+	else \
+		./scripts/generate-release-notes.sh; \
+	fi
+
+.PHONY: release-notes-file
+release-notes-file: ## Generate release notes and save to file. Usage: make release-notes-file VERSION=0.3.0
+	@if [ -z "$(VERSION)" ]; then \
+		echo "Error: VERSION is required. Usage: make release-notes-file VERSION=0.3.0"; \
+		exit 1; \
+	fi
+	@echo "Generating release notes for v$(VERSION)..."
+	@chmod +x scripts/generate-release-notes.sh
+	@./scripts/generate-release-notes.sh v$(VERSION) > release-notes-v$(VERSION).md
+	@echo "Release notes saved to release-notes-v$(VERSION).md"
+
+.PHONY: release-complete
+release-complete: ## Complete release process. Usage: make release-complete VERSION=0.3.0
+	@if [ -z "$(VERSION)" ]; then \
+		echo "Error: VERSION is required. Usage: make release-complete VERSION=0.3.0"; \
+		exit 1; \
+	fi
+	@echo "Completing release $(VERSION)..."
+	@make release-prepare VERSION=$(VERSION)
+	@echo "Committing version changes..."
+	@git add .
+	@git commit -m "chore: bump version to $(VERSION)"
+	@echo "Generating release notes..."
+	@make release-notes-file VERSION=$(VERSION)
+	@make release-tag VERSION=$(VERSION) MESSAGE="Release v$(VERSION)"
+	@make helm-package
+	@echo "Release $(VERSION) completed successfully!"
+	@echo "Files created:"
+	@echo "- release-notes-v$(VERSION).md"
+	@echo "- helm-operator-$(VERSION).tgz"
+	@echo ""
+	@echo "Next steps:"
+	@echo "1. Build and push Docker image: make docker-build docker-push IMG=$(IMG):$(VERSION)"
+	@echo "2. Create GitHub release using release-notes-v$(VERSION).md"
+	@echo "3. Upload helm-operator-$(VERSION).tgz to the release"
