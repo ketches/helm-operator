@@ -1,79 +1,79 @@
-# Helm Operator Developer Guide
+# Helm Operator 开发者指南
 
-## Overview
+## 概述
 
-Helm Operator is a Kubernetes controller for managing the lifecycle of Helm releases. It provides declarative Helm release management capabilities through Kubernetes Custom Resource Definitions (CRDs).
+Helm Operator 是一个 Kubernetes 控制器，用于管理 Helm 发布的生命周期。它通过 Kubernetes 自定义资源（CRD）提供声明式的 Helm 发布管理功能。
 
-## Architecture Overview
+## 架构概览
 
-### Core Components
+### 核心组件
 
 ```txt
 helm-operator/
-├── api/v1alpha1/           # CRD definitions
-│   ├── helmrelease_types.go    # HelmRelease resource definition
-│   └── helmrepository_types.go # HelmRepository resource definition
+├── api/v1alpha1/           # CRD 定义
+│   ├── helmrelease_types.go    # HelmRelease 资源定义
+│   └── helmrepository_types.go # HelmRepository 资源定义
 ├── internal/
-│   ├── controller/         # Controller logic
+│   ├── controller/         # 控制器逻辑
 │   │   ├── helmrelease_controller.go
 │   │   └── helmrepository_controller.go
-│   ├── helm/              # Helm client wrapper
+│   ├── helm/              # Helm 客户端封装
 │   │   ├── client.go
 │   │   ├── release.go
 │   │   └── repository.go
-│   └── utils/             # Utility functions
-├── deploy/                # Deployment configurations
-├── samples/               # Sample resources
-└── cmd/main.go            # Program entry point
+│   └── utils/             # 工具函数
+├── deploy/                # 部署配置
+├── samples/               # 示例资源
+└── cmd/main.go            # 程序入口
 ```
 
-### Resource Types
+### 资源类型
 
-1. **HelmRepository**: Defines Helm repository configuration
-2. **HelmRelease**: Defines Helm release configuration
+1. **HelmRepository**: 定义 Helm 仓库配置
+2. **HelmRelease**: 定义 Helm 发布配置
 
-## Development Environment Setup
+## 开发环境设置
 
-### Prerequisites
+### 前置条件
 
 - Go 1.21+
 - Docker
-- Kubernetes cluster (local or remote)
+- Kubernetes 集群（本地或远程）
 - kubectl
 - Helm 3.x
 - kubebuilder
 
-### Install Dependencies
+### 安装依赖
 
 ```bash
-# Clone the project
+# 克隆项目
 git clone https://github.com/ketches/helm-operator.git
 cd helm-operator
 
-# Install dependencies
+# 安装依赖
 go mod download
 ```
 
-### Build Project
+### 构建项目
 
 ```bash
-# Build binary
+# 构建二进制文件
 make build
 
-# Build Docker image
+# 构建 Docker 镜像
 make docker-build
 
-# Run tests
+# 运行测试
 make test
 ```
 
-## Core Concepts
+## 核心概念
 
 ### HelmRepository
 
-HelmRepository defines the configuration information for Helm repositories and supports multiple types of repositories:
+HelmRepository 定义了 Helm 仓库的配置信息，支持多种类型的仓库：
 
-#### 1. Public HTTPS Repository
+#### 1. 公共 HTTPS 仓库
 
 ```yaml
 apiVersion: helm-operator.ketches.cn/v1alpha1
@@ -89,7 +89,7 @@ spec:
   suspend: false
 ```
 
-#### 2. Private HTTPS Repository (with authentication)
+#### 2. 私有 HTTPS 仓库（带认证）
 
 ```yaml
 apiVersion: helm-operator.ketches.cn/v1alpha1
@@ -110,7 +110,7 @@ spec:
   suspend: false
 ```
 
-#### 3. Private HTTP Repository (internal network)
+#### 3. 私有 HTTP 仓库（内网环境）
 
 ```yaml
 apiVersion: helm-operator.ketches.cn/v1alpha1
@@ -133,20 +133,20 @@ spec:
   suspend: false
 ```
 
-**Key Field Descriptions:**
+**关键字段说明：**
 
-- `url`: Helm repository URL, supports `https://` and `http://` protocols
-- `type`: Repository type (currently only supports `helm`, may add `oci` support in the future)
-- `interval`: Synchronization interval
-- `timeout`: Operation timeout
-- `auth`: Authentication configuration (optional)
-  - `basic`: Basic authentication (username/password)
-  - `tls`: TLS configuration
-- `suspend`: Whether to suspend synchronization
+- `url`: Helm 仓库 URL，支持 `https://`、`http://` 协议
+- `type`: 仓库类型（当前只支持 `helm`，后续可能会添加对 `oci` 的支持）
+- `interval`: 同步间隔
+- `timeout`: 操作超时时间
+- `auth`: 认证配置（可选）
+  - `basic`: 基础认证（用户名/密码）
+  - `tls`: TLS 配置
+- `suspend`: 是否暂停同步
 
 ### HelmRelease
 
-HelmRelease defines the configuration for Helm releases:
+HelmRelease 定义了 Helm 发布的配置：
 
 ```yaml
 apiVersion: helm-operator.ketches.cn/v1alpha1
@@ -176,93 +176,93 @@ spec:
   interval: "1h"
 ```
 
-**Key Field Descriptions:**
+**关键字段说明：**
 
-- `chart`: Chart configuration (name, version, repository)
-- `release`: Release configuration (name, namespace)
-- `values`: Helm values configuration
-- `install/upgrade`: Install/upgrade options
-- `interval`: Reconciliation interval
+- `chart`: Chart 配置（名称、版本、仓库）
+- `release`: 发布配置（名称、命名空间）
+- `values`: Helm values 配置
+- `install/upgrade`: 安装/升级选项
+- `interval`: 协调间隔
 
-## Development Guide
+## 开发指南
 
-### Adding New Features
+### 添加新功能
 
-1. **Modify CRD definitions**
+1. **修改 CRD 定义**
 
    ```bash
-   # Edit API type definitions
+   # 编辑 API 类型定义
    vim api/v1alpha1/helmrelease_types.go
    
-   # Regenerate code
+   # 重新生成代码
    make generate
    
-   # Update CRDs
+   # 更新 CRD
    make manifests
    ```
 
-2. **Update controller logic**
+2. **更新控制器逻辑**
 
    ```bash
-   # Edit controller
+   # 编辑控制器
    vim internal/controller/helmrelease_controller.go
    
-   # Add business logic
-   # Update reconciliation loop
+   # 添加业务逻辑
+   # 更新协调循环
    ```
 
-3. **Add tests**
+3. **添加测试**
 
    ```bash
-   # Add unit tests
+   # 添加单元测试
    vim internal/controller/helmrelease_controller_test.go
    
-   # Run tests
+   # 运行测试
    make test
    ```
 
-### Controller Development Pattern
+### 控制器开发模式
 
-#### Reconciliation Loop
+#### 协调循环（Reconciliation Loop）
 
 ```go
 func (r *HelmReleaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-    // 1. Get resource
+    // 1. 获取资源
     release := &helmoperatorv1alpha1.HelmRelease{}
     if err := r.Get(ctx, req.NamespacedName, release); err != nil {
         return ctrl.Result{}, client.IgnoreNotFound(err)
     }
 
-    // 2. Handle deletion logic
+    // 2. 处理删除逻辑
     if !release.DeletionTimestamp.IsZero() {
         return r.reconcileDelete(ctx, release)
     }
 
-    // 3. Add Finalizer
+    // 3. 添加 Finalizer
     if !controllerutil.ContainsFinalizer(release, utils.HelmReleaseFinalizer) {
         controllerutil.AddFinalizer(release, utils.HelmReleaseFinalizer)
         return ctrl.Result{}, r.Update(ctx, release)
     }
 
-    // 4. Execute main logic
+    // 4. 执行主要逻辑
     return r.reconcileNormal(ctx, release)
 }
 ```
 
-#### Status Management
+#### 状态管理
 
 ```go
-// Update status condition
+// 更新状态条件
 condition := utils.NewReleaseReadyCondition(metav1.ConditionTrue, "InstallCompleted", "Release is ready")
 meta.SetStatusCondition(&release.Status.Conditions, condition)
 
-// Update status
+// 更新状态
 return r.Status().Update(ctx, release)
 ```
 
-### Using Helm Client
+### Helm 客户端使用
 
-#### Create Helm Client
+#### 创建 Helm 客户端
 
 ```go
 helmClient, err := helm.NewClient("default")
@@ -271,7 +271,7 @@ if err != nil {
 }
 ```
 
-#### Install Release
+#### 安装发布
 
 ```go
 installReq := &helm.InstallRequest{
@@ -288,18 +288,18 @@ installReq := &helm.InstallRequest{
 releaseInfo, err := helmClient.InstallRelease(ctx, installReq)
 ```
 
-#### Chart Reference Formats
+#### Chart 引用格式
 
-Chart references support multiple formats:
+Chart 引用支持多种格式：
 
-1. **Repository reference**: `repository_name/chart_name`
+1. **仓库引用**: `repository_name/chart_name`
 
    ```go
    chartRef := fmt.Sprintf("%s/%s", repoName, chartName)
-   // Example: "bitnami/nginx", "private-repo/myapp"
+   // 例如: "bitnami/nginx", "private-repo/myapp"
    ```
 
-2. **Direct URL**: Use `repositoryURL` field
+2. **直接 URL**: 使用 `repositoryURL` 字段
 
    ```yaml
    spec:
@@ -308,7 +308,7 @@ Chart references support multiple formats:
        repositoryURL: "https://charts.bitnami.com/bitnami"
    ```
 
-3. **Local Chart**: Use chart name directly
+3. **本地 Chart**: 直接使用 chart 名称
 
    ```yaml
    spec:
@@ -316,19 +316,19 @@ Chart references support multiple formats:
        name: "./local-chart"
    ```
 
-#### Supported Repository Types
+#### 支持的仓库类型
 
-| Repository Type | URL Format | Example | Use Case |
-|----------------|------------|---------|----------|
-| Public HTTPS | `https://` | `https://charts.bitnami.com/bitnami` | Public Helm repositories |
-| Private HTTPS | `https://` | `https://private.charts.example.com` | Enterprise private repositories |
-| Internal HTTP | `http://` | `http://charts.internal:8080` | Internal private repositories |
+| 仓库类型 | URL 格式 | 示例 | 用途 |
+|---------|---------|------|------|
+| 公共 HTTPS | `https://` | `https://charts.bitnami.com/bitnami` | 公共 Helm 仓库 |
+| 私有 HTTPS | `https://` | `https://private.charts.example.com` | 企业私有仓库 |
+| 内网 HTTP | `http://` | `http://charts.internal:8080` | 内网私有仓库 |
 
-#### Authentication Configuration
+#### 认证配置
 
-For private repositories, multiple authentication methods are supported:
+对于私有仓库，支持多种认证方式：
 
-1. **Basic Authentication (username/password)**
+1. **基础认证（用户名/密码）**
 
    ```yaml
    auth:
@@ -338,18 +338,18 @@ For private repositories, multiple authentication methods are supported:
          namespace: "default"
    ```
 
-2. **TLS Configuration**
+2. **TLS 配置**
 
    ```yaml
    auth:
      tls:
-       insecureSkipVerify: true  # Skip certificate verification (for HTTP repositories)
+       insecureSkipVerify: true  # 跳过证书验证（HTTP 仓库）
        secretRef:
          name: "tls-config"
          namespace: "default"
    ```
 
-3. **Authentication Secret Format**
+3. **认证 Secret 格式**
 
    ```yaml
    apiVersion: v1
@@ -362,126 +362,126 @@ For private repositories, multiple authentication methods are supported:
      password: <base64-encoded-password>
    ```
 
-## Testing Guide
+## 测试指南
 
-### Unit Tests
+### 单元测试
 
 ```bash
-# Run all tests
+# 运行所有测试
 make test
 
-# Run tests for specific packages
+# 运行特定包的测试
 go test ./internal/controller/...
 
-# Run tests with coverage
+# 运行测试并查看覆盖率
 go test -coverprofile=coverage.out ./...
 go tool cover -html=coverage.out
 ```
 
-### Integration Tests
+### 集成测试
 
 ```bash
-# Start test environment
+# 启动测试环境
 make test-integration
 
-# Run end-to-end tests
+# 运行端到端测试
 make test-e2e
 ```
 
-### Local Debugging
+### 本地调试
 
-1. **Run controller**
+1. **运行控制器**
 
    ```bash
-   # Set KUBECONFIG
+   # 设置 KUBECONFIG
    export KUBECONFIG=~/.kube/config
    
-   # Run controller
+   # 运行控制器
    go run cmd/main.go
    ```
 
-2. **Apply test resources**
+2. **应用测试资源**
 
    ```bash
-   # Apply HelmRepository
+   # 应用 HelmRepository
    kubectl apply -f samples/helm_repository.yaml
    
-   # Apply HelmRelease
+   # 应用 HelmRelease
    kubectl apply -f samples/helm_release.yaml
    ```
 
-3. **View logs**
+3. **查看日志**
 
    ```bash
-   # View controller logs
+   # 查看控制器日志
    kubectl logs -f deployment/helm-operator -n ketches
    ```
 
-## Troubleshooting
+## 故障排除
 
-### Common Issues
+### 常见问题
 
-1. **Chart reference error**
-
-   ```txt
-   Error: non-absolute URLs should be in form of repo_name/path_to_chart, got: myapp
-   Solution: Ensure correct chart reference format "repository_name/chart_name"
-   ```
-
-2. **Kubernetes client initialization failure**
+1. **Chart 引用错误**
 
    ```txt
-   Error: kubernetes client not initialized in Helm configuration
-   Solution: Check KUBECONFIG settings and cluster connection
+   错误: non-absolute URLs should be in form of repo_name/path_to_chart, got: myapp
+   解决: 确保使用正确的 chart 引用格式 "repository_name/chart_name"
    ```
 
-3. **Insufficient permissions**
+2. **Kubernetes 客户端初始化失败**
 
    ```txt
-   Error: forbidden: User cannot create resource
-   Solution: Check RBAC configuration and service account permissions
+   错误: kubernetes client not initialized in Helm configuration
+   解决: 检查 KUBECONFIG 设置和集群连接
    ```
 
-### Debugging Tips
+3. **权限不足**
 
-1. **Enable verbose logging**
+   ```txt
+   错误: forbidden: User cannot create resource
+   解决: 检查 RBAC 配置和服务账户权限
+   ```
+
+### 调试技巧
+
+1. **启用详细日志**
 
    ```bash
-   # Set log level
+   # 设置日志级别
    export LOG_LEVEL=debug
    go run cmd/main.go
    ```
 
-2. **Check resource status**
+2. **查看资源状态**
 
    ```bash
-   # Check HelmRelease status
+   # 查看 HelmRelease 状态
    kubectl describe helmrelease myapp-sample
    
-   # View events
+   # 查看事件
    kubectl get events --sort-by=.metadata.creationTimestamp
    ```
 
-3. **Verify using Helm CLI**
+3. **使用 Helm CLI 验证**
 
    ```bash
-   # List releases
+   # 列出发布
    helm list -A
    
-   # View release details
+   # 查看发布详情
    helm get all <release-name> -n <namespace>
    ```
 
-## Contributing Guide
+## 贡献指南
 
-### Code Standards
+### 代码规范
 
-1. **Go code style**
-   - Follow `gofmt` formatting
-   - Use `golint` for code quality checks
-   - Add appropriate comments and documentation
+1. **Go 代码风格**
+   - 遵循 `gofmt` 格式化
+   - 使用 `golint` 检查代码质量
+   - 添加适当的注释和文档
 
-2. **Commit message format**
+2. **提交信息格式**
 
    ```txt
    <type>(<scope>): <subject>
@@ -491,7 +491,7 @@ make test-e2e
    <footer>
    ```
 
-   Example:
+   例如:
 
    ```txt
    feat(controller): add support for OCI repositories
@@ -503,33 +503,33 @@ make test-e2e
    Fixes #123
    ```
 
-3. **Testing requirements**
-   - New features must include unit tests
-   - Test coverage should not be below 80%
-   - Integration tests to verify end-to-end functionality
+3. **测试要求**
+   - 新功能必须包含单元测试
+   - 测试覆盖率不低于 80%
+   - 集成测试验证端到端功能
 
-### Release Process
+### 发布流程
 
-1. **Version tagging**
+1. **版本标记**
 
    ```bash
    git tag -a v1.0.0 -m "Release v1.0.0"
    git push origin v1.0.0
    ```
 
-2. **Build release**
+2. **构建发布**
 
    ```bash
    make release VERSION=v1.0.0
    ```
 
-## References
+## 参考资源
 
 - [Kubernetes Controller Runtime](https://github.com/kubernetes-sigs/controller-runtime)
 - [Helm Go SDK](https://helm.sh/docs/topics/advanced/#go-sdk)
 - [Kubebuilder Book](https://book.kubebuilder.io/)
 - [Operator Pattern](https://kubernetes.io/docs/concepts/extend-kubernetes/operator/)
 
-## License
+## 许可证
 
-This project is licensed under the Apache 2.0 License. See the [LICENSE](LICENSE) file for details.
+本项目采用 Apache 2.0 许可证。详见 [LICENSE](LICENSE) 文件。

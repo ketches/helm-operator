@@ -107,54 +107,31 @@ kubectl apply -f https://raw.githubusercontent.com/ketches/helm-operator/master/
 3. **验证安装:**
 
 ```bash
-kubectl get pods -n helm-operator-system
+kubectl get pods -n ketches
 ```
 
 ### 基本使用
 
 #### 1. 创建 Helm 仓库
 
-```yaml
-apiVersion: helm-operator.ketches.cn/v1alpha1
-kind: HelmRepository
-metadata:
-  name: bitnami
-  namespace: default
-spec:
-  url: "https://charts.bitnami.com/bitnami"
-  interval: "30m"
+```bash
+kubectl apply -f https://raw.githubusercontent.com/ketches/helm-operator/master/samples/helm_repository.yaml
 ```
 
 #### 2. 创建 Helm 发布
 
-```yaml
-apiVersion: helm-operator.ketches.cn/v1alpha1
-kind: HelmRelease
-metadata:
-  name: nginx
-  namespace: default
-spec:
-  chart:
-    name: nginx
-    version: "15.4.4"
-    repository:
-      name: bitnami
-      namespace: default
-  values: |
-    replicaCount: 2
-    service:
-      type: LoadBalancer
-      port: 80
+```bash
+kubectl apply -f https://raw.githubusercontent.com/ketches/helm-operator/master/samples/helm_release.yaml
 ```
 
 #### 3. 检查状态
 
 ```bash
 # 检查仓库状态
-kubectl get helmrepository bitnami -o yaml
+kubectl get helmrepository helm-operator-charts
 
 # 检查发布状态
-kubectl get helmrelease nginx -o yaml
+kubectl get helmrelease nginx
 ```
 
 ## 开发
@@ -189,11 +166,10 @@ make build    # 构建二进制文件
 make test     # 运行测试
 ```
 
-### 构建 Docker 镜像
+### 构建本地 Docker 镜像
 
 ```bash
-make docker-build IMG=your-registry/helm-operator:tag
-make docker-push IMG=your-registry/helm-operator:tag
+make docker-build-local IMG=helm-operator TAG=dev
 ```
 
 ### 部署到集群
@@ -264,7 +240,7 @@ spec:
 
 ## 贡献
 
-我们欢迎贡献！请查看我们的[贡献指南](.dev/contributing.md)了解详情。
+我们欢迎贡献！请查看我们的[贡献指南](./CONTRIBUTING_zh.md)和[开发者指南](./DEVELOPER_GUIDE_zh.md)了解详情。
 
 ### 开发工作流
 
@@ -281,7 +257,7 @@ spec:
 
 ## 支持
 
-- 📖 [文档](.dev/)
+- 📖 [文档](docs/)
 - 🐛 [问题跟踪](https://github.com/ketches/helm-operator/issues)
 - 💬 [讨论](https://github.com/ketches/helm-operator/discussions)
 

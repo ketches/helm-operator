@@ -107,54 +107,31 @@ kubectl apply -f https://raw.githubusercontent.com/ketches/helm-operator/master/
 3. **Verify Installation:**
 
 ```bash
-kubectl get pods -n helm-operator-system
+kubectl get pods -n ketches
 ```
 
 ### Basic Usage
 
 #### 1. Create a Helm Repository
 
-```yaml
-apiVersion: helm-operator.ketches.cn/v1alpha1
-kind: HelmRepository
-metadata:
-  name: bitnami
-  namespace: default
-spec:
-  url: "https://charts.bitnami.com/bitnami"
-  interval: "30m"
+```bash
+kubectl apply -f https://raw.githubusercontent.com/ketches/helm-operator/master/samples/helm_repository.yaml
 ```
 
 #### 2. Create a Helm Release
 
-```yaml
-apiVersion: helm-operator.ketches.cn/v1alpha1
-kind: HelmRelease
-metadata:
-  name: nginx
-  namespace: default
-spec:
-  chart:
-    name: nginx
-    version: "15.4.4"
-    repository:
-      name: bitnami
-      namespace: default
-  values: |
-    replicaCount: 2
-    service:
-      type: LoadBalancer
-      port: 80
+```bash
+kubectl apply -f https://raw.githubusercontent.com/ketches/helm-operator/master/samples/helm_release.yaml
 ```
 
 #### 3. Check Status
 
 ```bash
 # Check repository status
-kubectl get helmrepository bitnami -o yaml
+kubectl get helmrepository helm-operator-charts
 
 # Check release status
-kubectl get helmrelease nginx -o yaml
+kubectl get helmrelease nginx
 ```
 
 ## Development
@@ -189,11 +166,10 @@ make build    # Build binary
 make test     # Run tests
 ```
 
-### Building Docker Image
+### Building Docker Image Locally
 
 ```bash
-make docker-build IMG=your-registry/helm-operator:tag
-make docker-push IMG=your-registry/helm-operator:tag
+make docker-build-local IMG=helm-operator TAG=dev
 ```
 
 ### Deploying to Cluster
@@ -378,7 +354,7 @@ For detailed API documentation, see:
 
 ## Contributing
 
-We welcome contributions! Please see our [Contributing Guide](.dev/contributing.md) for details.
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) and [Developer Guide](DEVELOPER_GUIDE.md) for details.
 
 ### Development Workflow
 
@@ -395,7 +371,7 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 
 ## Support
 
-- 📖 [Documentation](.dev/)
+- 📖 [Documentation](docs/)
 - 🐛 [Issue Tracker](https://github.com/ketches/helm-operator/issues)
 - 💬 [Discussions](https://github.com/ketches/helm-operator/discussions)
 

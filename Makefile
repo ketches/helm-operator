@@ -122,6 +122,10 @@ docker-build:
 	$(CONTAINER_TOOL) buildx use helm-operator-builder
 	- $(CONTAINER_TOOL) buildx build --push --platform=$(PLATFORMS) -t ${IMG} -t ${IMG}:${TAG} -t ${ALIYUN_REGISTRY}/${IMG} -t ${ALIYUN_REGISTRY}/${IMG}:${TAG} .
 
+.PHONY: docker-build-local
+docker-build-local:
+	- $(CONTAINER_TOOL) build -t ${IMG}:${TAG} .
+
 ##@ Deployment
 
 ifndef ignore-not-found

@@ -30,13 +30,13 @@ import (
 )
 
 // namespace where the project is deployed in
-const namespace = "helm-operator-system"
+const namespace = "ketches"
 
 // serviceAccountName created for the project
-const serviceAccountName = "helm-operator-controller-manager"
+const serviceAccountName = "helm-operator"
 
 // metricsServiceName is the name of the metrics service of the project
-const metricsServiceName = "helm-operator-controller-manager-metrics-service"
+const metricsServiceName = "helm-operator-metrics-service"
 
 // metricsRoleBindingName is the name of the RBAC that will be created to allow get the metrics data
 const metricsRoleBindingName = "helm-operator-metrics-binding"
