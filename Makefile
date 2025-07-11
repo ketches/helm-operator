@@ -138,11 +138,12 @@ uninstall: manifests ## Uninstall CRDs from the K8s cluster specified in ~/.kube
 
 .PHONY: deploy
 deploy: manifests ## Install CRDs into the K8s cluster specified in ~/.kube/config.
-	$(KUBECTL) apply -f deploy/manifests.yaml
+	- $(KUBECTL) create namespace ketches || true
+	$(KUBECTL) apply -n ketches -f deploy/manifests.yaml
 	
 .PHONY: undeploy
 undeploy: manifests ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	$(KUBECTL) delete -f deploy/manifests.yaml --ignore-not-found=$(ignore-not-found)
+	$(KUBECTL) delete -n ketches -f deploy/manifests.yaml --ignore-not-found=$(ignore-not-found)
 
 ##@ Dependencies
 

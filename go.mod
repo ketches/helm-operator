@@ -4,6 +4,7 @@ go 1.24.0
 
 require (
 	github.com/go-logr/logr v1.4.3
+	github.com/goccy/go-json v0.10.5
 	github.com/onsi/ginkgo/v2 v2.23.4
 	github.com/onsi/gomega v1.37.0
 	gopkg.in/yaml.v3 v3.0.1

@@ -17,17 +17,16 @@ limitations under the License.
 package e2e
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"time"
 
+	"github.com/goccy/go-json"
+	"github.com/ketches/helm-operator/test/utils"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-
-	"github.com/ketches/helm-operator/test/utils"
 )
 
 // namespace where the project is deployed in
