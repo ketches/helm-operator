@@ -1,7 +1,7 @@
 # Image URL to use all building/pushing image targets
-IMG_TAG ?= v0.1.0
+IMG ?= ketches/helm-operator
+TAG ?= v0.1.0
 ALIYUN_REGISTRY ?= registry.cn-hangzhou.aliyuncs.com
-IMG ?= ketches/helm-operator:$(IMG_TAG)
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -45,7 +45,7 @@ help: ## Display this help.
 
 .PHONY: manifests
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
-	$(CONTROLLER_GEN) rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=deploy/crds
+	$(CONTROLLER_GEN) crd webhook paths="./..." output:crd:artifacts:config=deploy/crds
 	cp deploy/crds/*.yaml charts/helm-operator/crds/
 
 .PHONY: generate
@@ -120,8 +120,7 @@ PLATFORMS ?= linux/arm64,linux/amd64
 docker-build:
 	- $(CONTAINER_TOOL) buildx create --name helm-operator-builder
 	$(CONTAINER_TOOL) buildx use helm-operator-builder
-	- $(CONTAINER_TOOL) buildx build --push --platform=$(PLATFORMS) --tag ${IMG} --tag ${ALIYUN_REGISTRY}/${IMG} .
-	# - $(CONTAINER_TOOL) buildx rm helm-operator-builder
+	- $(CONTAINER_TOOL) buildx build --push --platform=$(PLATFORMS) -t ${IMG} -t ${IMG}:${TAG} -t ${ALIYUN_REGISTRY}/${IMG} -t ${ALIYUN_REGISTRY}/${IMG}:${TAG} .
 
 ##@ Deployment
 

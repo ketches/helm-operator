@@ -1,7 +1,7 @@
 name: Release
 
 env:
-  IMAGE: helm-operator
+  IMG: ketches/helm-operator
 
 on:
   push:
@@ -17,7 +17,7 @@ jobs:
 
       - name: Set ENV
         run: |
-          echo "VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+          echo "TAG=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
 
       - name: Login to Aliyun Container Registry
         uses: docker/login-action@v3
@@ -43,7 +43,7 @@ jobs:
             linux/arm64
           push: true
           tags: |
-            ${{ vars.ALIYUNACR_REGISTRY }}/${{ vars.ALIYUNACR_NAMESPACE }}/${{ env.IMAGE }}:${{ env.VERSION }}
-            ${{ vars.ALIYUNACR_REGISTRY }}/${{ vars.ALIYUNACR_NAMESPACE }}/${{ env.IMAGE }}:latest
-            ${{ vars.DOCKERHUB_USERNAME }}/${{ env.IMAGE }}:${{ env.VERSION }}
-            ${{ vars.DOCKERHUB_USERNAME }}/${{ env.IMAGE }}:latest
+            ${{ vars.ALIYUNACR_REGISTRY }}/${{ env.IMG }}:${{ env.TAG }}
+            ${{ vars.ALIYUNACR_REGISTRY }}/${{ env.IMG }}:latest
+            ${{ env.IMG }}:${{ env.TAG }}
+            ${{ env.IMG }}:latest
