@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	"gopkg.in/yaml.v3"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -549,50 +550,80 @@ func (r *HelmReleaseReconciler) getUninstallKeepHistory(release *helmoperatorv1a
 }
 
 // Status and utility methods
+func (r *HelmReleaseReconciler) updateStatusWithRetry(ctx context.Context, release *helmoperatorv1alpha1.HelmRelease, updateFunc func(*helmoperatorv1alpha1.HelmRelease)) error {
+	const maxRetries = 3
+	var lastErr error
+
+	for i := 0; i < maxRetries; i++ {
+		// Get the latest version of the resource
+		latest := &helmoperatorv1alpha1.HelmRelease{}
+		if err := r.Get(ctx, types.NamespacedName{Name: release.Name, Namespace: release.Namespace}, latest); err != nil {
+			return err
+		}
+
+		// Apply the update function
+		updateFunc(latest)
+
+		// Try to update the status
+		if err := r.Status().Update(ctx, latest); err != nil {
+			lastErr = err
+			// If it's a conflict error, retry
+			if apierrors.IsConflict(err) {
+				r.Log.V(1).Info("Resource version conflict, retrying", "attempt", i+1, "error", err)
+				continue
+			}
+			// If it's not a conflict error, return immediately
+			return err
+		}
+
+		// Success
+		return nil
+	}
+
+	// All retries failed
+	return fmt.Errorf("failed to update status after %d retries, last error: %w", maxRetries, lastErr)
+}
+
 func (r *HelmReleaseReconciler) updateStatus(ctx context.Context, release *helmoperatorv1alpha1.HelmRelease, condition metav1.Condition) error {
-	release = release.DeepCopy()
-
-	meta.SetStatusCondition(&release.Status.Conditions, condition)
-	release.Status.ObservedGeneration = release.Generation
-
-	return r.Status().Update(ctx, release)
+	return r.updateStatusWithRetry(ctx, release, func(r *helmoperatorv1alpha1.HelmRelease) {
+		meta.SetStatusCondition(&r.Status.Conditions, condition)
+		r.Status.ObservedGeneration = r.Generation
+	})
 }
 
 func (r *HelmReleaseReconciler) updateReleaseStatus(ctx context.Context, release *helmoperatorv1alpha1.HelmRelease, releaseInfo *helm.ReleaseInfo) error {
-	release = release.DeepCopy()
+	return r.updateStatusWithRetry(ctx, release, func(r *helmoperatorv1alpha1.HelmRelease) {
+		// Update Helm release information
+		r.Status.HelmRelease = &helmoperatorv1alpha1.HelmReleaseInfo{
+			Name:        releaseInfo.Name,
+			Namespace:   releaseInfo.Namespace,
+			Revision:    releaseInfo.Revision,
+			Status:      releaseInfo.Status,
+			Chart:       releaseInfo.Chart,
+			AppVersion:  releaseInfo.AppVersion,
+			Description: releaseInfo.Description,
+		}
 
-	// Update Helm release information
-	release.Status.HelmRelease = &helmoperatorv1alpha1.HelmReleaseInfo{
-		Name:        releaseInfo.Name,
-		Namespace:   releaseInfo.Namespace,
-		Revision:    releaseInfo.Revision,
-		Status:      releaseInfo.Status,
-		Chart:       releaseInfo.Chart,
-		AppVersion:  releaseInfo.AppVersion,
-		Description: releaseInfo.Description,
-	}
+		if releaseInfo.FirstDeployed != nil {
+			r.Status.HelmRelease.FirstDeployed = &metav1.Time{Time: *releaseInfo.FirstDeployed}
+		}
+		if releaseInfo.LastDeployed != nil {
+			r.Status.HelmRelease.LastDeployed = &metav1.Time{Time: *releaseInfo.LastDeployed}
+		}
 
-	if releaseInfo.FirstDeployed != nil {
-		release.Status.HelmRelease.FirstDeployed = &metav1.Time{Time: *releaseInfo.FirstDeployed}
-	}
-	if releaseInfo.LastDeployed != nil {
-		release.Status.HelmRelease.LastDeployed = &metav1.Time{Time: *releaseInfo.LastDeployed}
-	}
+		// Update last applied configuration
+		r.Status.LastAppliedConfiguration = &release.Spec
 
-	// Update last applied configuration
-	release.Status.LastAppliedConfiguration = &release.Spec
+		// Set ready condition
+		condition := utils.NewReleaseReadyCondition(metav1.ConditionTrue, utils.ReasonInstallCompleted, "Release is ready")
+		meta.SetStatusCondition(&r.Status.Conditions, condition)
 
-	// Set ready condition
-	condition := utils.NewReleaseReadyCondition(metav1.ConditionTrue, utils.ReasonInstallCompleted, "Release is ready")
-	meta.SetStatusCondition(&release.Status.Conditions, condition)
+		// Set released condition
+		releasedCondition := utils.NewReleaseReleasedCondition(metav1.ConditionTrue, utils.ReasonInstallCompleted, "Release is deployed")
+		meta.SetStatusCondition(&r.Status.Conditions, releasedCondition)
 
-	// Set released condition
-	releasedCondition := utils.NewReleaseReleasedCondition(metav1.ConditionTrue, utils.ReasonInstallCompleted, "Release is deployed")
-	meta.SetStatusCondition(&release.Status.Conditions, releasedCondition)
-
-	release.Status.ObservedGeneration = release.Generation
-
-	return r.Status().Update(ctx, release)
+		r.Status.ObservedGeneration = r.Generation
+	})
 }
 
 func (r *HelmReleaseReconciler) needsUpgrade(release *helmoperatorv1alpha1.HelmRelease, existingRelease *helm.ReleaseInfo) (bool, string) {
@@ -627,9 +658,26 @@ func (r *HelmReleaseReconciler) isVersionMatch(chartInfo, requestedVersion strin
 }
 
 func (r *HelmReleaseReconciler) areValuesEqual(newValues string, existingValues string) bool {
+	if newValues == "" && existingValues == "" {
+		return true // Both are empty, considered equal
+	}
+	if newValues == "" || existingValues == "" {
+		return false // One is empty, the other is not
+	}
+
+	var (
+		newValuesM, existingValuesM map[string]any
+	)
+	if err := yaml.Unmarshal([]byte(newValues), &newValuesM); err != nil {
+		return false
+	}
+	if err := yaml.Unmarshal([]byte(existingValues), &existingValuesM); err != nil {
+		return false
+	}
+	return utils.MapEquals(newValuesM, existingValuesM)
 	// Simple string comparison for now
 	// In a more sophisticated implementation, we could parse YAML and do semantic comparison
-	return newValues == existingValues
+	// return newValues == existingValues
 }
 
 func (r *HelmReleaseReconciler) isSpecEqual(spec1, spec2 *helmoperatorv1alpha1.HelmReleaseSpec) bool {
