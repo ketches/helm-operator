@@ -44,6 +44,8 @@ type RepositoryManager interface {
 	RemoveRepository(ctx context.Context, name string) error
 	ListRepositories(ctx context.Context) ([]*repo.Entry, error)
 	GetChartsFromRepository(ctx context.Context, repoName string) ([]ChartInfo, error)
+	GetChartVersions(ctx context.Context, repoName, chartName string) ([]ChartInfo, error)
+	GetChartValues(ctx context.Context, repoName, chartName, version string) (string, error)
 }
 
 // ReleaseManager defines release operations
@@ -191,9 +193,9 @@ type ReleaseInfo struct {
 	Description   string
 	FirstDeployed *time.Time
 	LastDeployed  *time.Time
-	Notes         string
-	Values        string
-	RawValues     string // Default values from the chart
+	Notes          string
+	Values         string
+	OriginalValues string // Default values from the chart
 }
 
 // ChartInfo contains information about a chart

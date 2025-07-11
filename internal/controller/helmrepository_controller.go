@@ -54,6 +54,7 @@ type HelmRepositoryReconciler struct {
 // +kubebuilder:rbac:groups=helm-operator.ketches.cn,resources=helmrepositories/finalizers,verbs=update
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop
 func (r *HelmRepositoryReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -169,6 +170,17 @@ func (r *HelmRepositoryReconciler) reconcileSync(ctx context.Context, repo *helm
 	if err != nil {
 		logger.Error(err, "Failed to get charts from repository")
 		condition := utils.NewFailedCondition(utils.ReasonSyncFailed, fmt.Sprintf("Failed to get charts: %v", err))
+		if updateErr := r.updateStatusWithRetry(ctx, repo, condition); updateErr != nil {
+			logger.Error(updateErr, "Failed to update status")
+		}
+		r.Recorder.Event(repo, "Warning", utils.ReasonSyncFailed, err.Error())
+		return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
+	}
+
+	// Create ConfigMaps for chart values
+	if err := r.createChartValuesConfigMaps(ctx, repo, charts); err != nil {
+		logger.Error(err, "Failed to create chart values ConfigMaps")
+		condition := utils.NewFailedCondition(utils.ReasonSyncFailed, fmt.Sprintf("Failed to create ConfigMaps: %v", err))
 		if updateErr := r.updateStatusWithRetry(ctx, repo, condition); updateErr != nil {
 			logger.Error(updateErr, "Failed to update status")
 		}
@@ -458,10 +470,164 @@ func (r *HelmRepositoryReconciler) addRepositoryToHelm(ctx context.Context, repo
 	return r.HelmClient.AddRepository(ctx, entry)
 }
 
+// createChartValuesConfigMaps creates ConfigMaps for all chart versions' values.yaml
+func (r *HelmRepositoryReconciler) createChartValuesConfigMaps(ctx context.Context, repo *helmoperatorv1alpha1.HelmRepository, charts []helm.ChartInfo) error {
+	logger := r.Log.WithValues("helmrepository", repo.Name, "namespace", repo.Namespace)
+
+	// Get all chart versions for each chart
+	for _, chart := range charts {
+		logger.V(1).Info("Processing chart", "chartName", chart.Name)
+
+		// Get all versions of this chart
+		chartVersions, err := r.HelmClient.GetChartVersions(ctx, repo.Name, chart.Name)
+		if err != nil {
+			logger.Error(err, "Failed to get chart versions", "chartName", chart.Name)
+			continue // Continue with other charts
+		}
+
+		// Create ConfigMap for each version
+		for _, version := range chartVersions {
+			if err := r.createChartVersionConfigMap(ctx, repo, chart.Name, version.Version); err != nil {
+				logger.Error(err, "Failed to create ConfigMap for chart version",
+					"chartName", chart.Name, "version", version.Version)
+				// Continue with other versions
+			}
+		}
+	}
+
+	return nil
+}
+
+// createChartVersionConfigMap creates a ConfigMap for a specific chart version's values.yaml
+func (r *HelmRepositoryReconciler) createChartVersionConfigMap(ctx context.Context, repo *helmoperatorv1alpha1.HelmRepository, chartName, version string) error {
+	logger := r.Log.WithValues("helmrepository", repo.Name, "chartName", chartName, "version", version)
+
+	// Get chart values
+	values, err := r.HelmClient.GetChartValues(ctx, repo.Name, chartName, version)
+	if err != nil {
+		return fmt.Errorf("failed to get chart values: %w", err)
+	}
+
+	// Generate ConfigMap name
+	configMapName := r.generateConfigMapName(repo.Name, chartName, version)
+
+	// Check if ConfigMap already exists
+	existingConfigMap := &corev1.ConfigMap{}
+	err = r.Get(ctx, types.NamespacedName{
+		Name:      configMapName,
+		Namespace: repo.Namespace,
+	}, existingConfigMap)
+
+	if err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("failed to check existing ConfigMap: %w", err)
+	}
+
+	// Create ConfigMap object
+	configMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      configMapName,
+			Namespace: repo.Namespace,
+			Labels: map[string]string{
+				"app.kubernetes.io/name":              "helm-operator",
+				"app.kubernetes.io/component":         "chart-values",
+				"helm-operator.ketches.cn/repository": repo.Name,
+				"helm-operator.ketches.cn/chart":      chartName,
+				"helm-operator.ketches.cn/version":    version,
+			},
+			Annotations: map[string]string{
+				"helm-operator.ketches.cn/chart-name":    chartName,
+				"helm-operator.ketches.cn/chart-version": version,
+				"helm-operator.ketches.cn/repository":    repo.Name,
+			},
+		},
+		Data: map[string]string{
+			"values.yaml": values,
+		},
+	}
+
+	// Set owner reference
+	if err := controllerutil.SetControllerReference(repo, configMap, r.Scheme); err != nil {
+		return fmt.Errorf("failed to set controller reference: %w", err)
+	}
+
+	if apierrors.IsNotFound(err) {
+		// ConfigMap doesn't exist, create it
+		logger.Info("Creating ConfigMap for chart values")
+		if err := r.Create(ctx, configMap); err != nil {
+			return fmt.Errorf("failed to create ConfigMap: %w", err)
+		}
+	} else {
+		// ConfigMap exists, update it if values changed
+		if existingConfigMap.Data["values.yaml"] != values {
+			logger.Info("Updating ConfigMap for chart values")
+			existingConfigMap.Data = configMap.Data
+			existingConfigMap.Labels = configMap.Labels
+			existingConfigMap.Annotations = configMap.Annotations
+
+			if err := r.Update(ctx, existingConfigMap); err != nil {
+				return fmt.Errorf("failed to update ConfigMap: %w", err)
+			}
+		}
+	}
+
+	return nil
+}
+
+// generateConfigMapName generates a consistent name for chart values ConfigMap
+func (r *HelmRepositoryReconciler) generateConfigMapName(repoName, chartName, version string) string {
+	// Format: helm-values-{repo}-{chart}-{version}
+	// Replace dots and other special characters with dashes for valid Kubernetes names
+	safeName := fmt.Sprintf("helm-values-%s-%s-%s", repoName, chartName, version)
+
+	// Replace invalid characters
+	safeName = sanitizeKubernetesName(safeName)
+
+	// Ensure name is not too long (max 253 characters for ConfigMap names)
+	if len(safeName) > 253 {
+		// Truncate and add hash to ensure uniqueness
+		hash := fmt.Sprintf("%x", []byte(safeName))[:8]
+		safeName = safeName[:240] + "-" + hash
+	}
+
+	return safeName
+}
+
+// sanitizeKubernetesName replaces invalid characters in Kubernetes resource names
+func sanitizeKubernetesName(name string) string {
+	// Replace dots, plus signs, and other invalid characters with dashes
+	result := ""
+	for _, char := range name {
+		if (char >= 'a' && char <= 'z') || (char >= '0' && char <= '9') || char == '-' {
+			result += string(char)
+		} else {
+			result += "-"
+		}
+	}
+
+	// Remove leading/trailing dashes and consecutive dashes
+	for len(result) > 0 && result[0] == '-' {
+		result = result[1:]
+	}
+	for len(result) > 0 && result[len(result)-1] == '-' {
+		result = result[:len(result)-1]
+	}
+
+	// Replace consecutive dashes with single dash
+	for i := 0; i < len(result)-1; i++ {
+		if result[i] == '-' && result[i+1] == '-' {
+			result = result[:i] + result[i+1:]
+			i-- // Check the same position again
+		}
+	}
+
+	return result
+}
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *HelmRepositoryReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&helmoperatorv1alpha1.HelmRepository{}).
+		Owns(&corev1.ConfigMap{}).
 		Named("helmrepository").
 		Complete(r)
 }

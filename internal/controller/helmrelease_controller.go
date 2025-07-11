@@ -614,6 +614,9 @@ func (r *HelmReleaseReconciler) updateReleaseStatus(ctx context.Context, release
 		// Update last applied configuration
 		r.Status.LastAppliedConfiguration = &release.Spec
 
+		// Update original values from chart
+		r.Status.OriginalValues = releaseInfo.OriginalValues
+
 		// Set ready condition
 		condition := utils.NewReleaseReadyCondition(metav1.ConditionTrue, utils.ReasonInstallCompleted, "Release is ready")
 		meta.SetStatusCondition(&r.Status.Conditions, condition)
@@ -710,7 +713,6 @@ func isReleaseNotFoundError(err error) bool {
 func (r *HelmReleaseReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&helmoperatorv1alpha1.HelmRelease{}).
-		For(&helmoperatorv1alpha1.HelmRepository{}).
 		Named("helmrelease").
 		Complete(r)
 }

@@ -77,9 +77,9 @@ type HelmReleaseStatus struct {
 	// +optional
 	LastAppliedConfiguration *HelmReleaseSpec `json:"lastAppliedConfiguration,omitempty"`
 
-	// RawValues contains the default values from the chart for comparison
+	// OriginalValues contains the default values from the chart for comparison
 	// +optional
-	RawValues string `json:"rawValues,omitempty"`
+	OriginalValues string `json:"originalValues,omitempty"`
 
 	// Failures contains information about failed operations
 	// +optional
@@ -303,7 +303,7 @@ type HelmRelease struct {
 // HelmReleaseList contains a list of HelmRelease.
 type HelmReleaseList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
+	metav1.ListMeta `json:"metadata"`
 	Items           []HelmRelease `json:"items"`
 }
 

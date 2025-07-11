@@ -1,0 +1,101 @@
+# Example: HelmRepository with ConfigMap creation for chart values
+# This example demonstrates how the helm-operator automatically creates ConfigMaps
+# containing the values.yaml for each chart version when a HelmRepository is synced.
+
+apiVersion: helm-operator.ketches.cn/v1alpha1
+kind: HelmRepository
+metadata:
+  name: bitnami
+  namespace: default
+spec:
+  url: https://charts.bitnami.com/bitnami
+  interval: 1h
+  suspend: false
+
+---
+# After the HelmRepository is synced, ConfigMaps will be automatically created
+# with names like: helm-values-bitnami-nginx-1-0-0
+# Each ConfigMap will contain:
+# - The values.yaml content for that specific chart version
+# - Labels identifying the repository, chart, and version
+# - OwnerReference to the HelmRepository (for automatic cleanup)
+
+# Example of a generated ConfigMap (this will be created automatically):
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: helm-values-bitnami-nginx-1-0-0
+  namespace: default
+  labels:
+    app.kubernetes.io/name: helm-operator
+    app.kubernetes.io/component: chart-values
+    helm-operator.ketches.cn/repository: bitnami
+    helm-operator.ketches.cn/chart: nginx
+    helm-operator.ketches.cn/version: 1.0.0
+  annotations:
+    helm-operator.ketches.cn/chart-name: nginx
+    helm-operator.ketches.cn/chart-version: 1.0.0
+    helm-operator.ketches.cn/repository: bitnami
+  ownerReferences:
+  - apiVersion: helm-operator.ketches.cn/v1alpha1
+    kind: HelmRepository
+    name: bitnami
+    uid: <repository-uid>
+    controller: true
+    blockOwnerDeletion: true
+data:
+  values.yaml: |
+    # Default values for nginx.
+    # This is a YAML-formatted file.
+    # Declare variables to be substituted here.
+    
+    replicaCount: 1
+    
+    image:
+      repository: nginx
+      pullPolicy: IfNotPresent
+      tag: ""
+    
+    imagePullSecrets: []
+    nameOverride: ""
+    fullnameOverride: ""
+    
+    serviceAccount:
+      create: true
+      annotations: {}
+      name: ""
+    
+    podAnnotations: {}
+    
+    podSecurityContext: {}
+    
+    securityContext: {}
+    
+    service:
+      type: ClusterIP
+      port: 80
+    
+    ingress:
+      enabled: false
+      className: ""
+      annotations: {}
+      hosts:
+        - host: chart-example.local
+          paths:
+            - path: /
+              pathType: ImplementationSpecific
+      tls: []
+    
+    resources: {}
+    
+    autoscaling:
+      enabled: false
+      minReplicas: 1
+      maxReplicas: 100
+      targetCPUUtilizationPercentage: 80
+    
+    nodeSelector: {}
+    
+    tolerations: []
+    
+    affinity: {}

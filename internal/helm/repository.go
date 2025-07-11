@@ -22,6 +22,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"gopkg.in/yaml.v3"
+	"helm.sh/helm/v3/pkg/chart/loader"
+	"helm.sh/helm/v3/pkg/downloader"
 	"helm.sh/helm/v3/pkg/getter"
 	"helm.sh/helm/v3/pkg/repo"
 )
@@ -310,8 +313,70 @@ func (c *helmClient) loadRepoFile() (*repo.File, error) {
 func (c *helmClient) updateRepositoryCache(repositories []*repo.Entry) {
 	c.repoCache.mu.Lock()
 	defer c.repoCache.mu.Unlock()
-	
+
 	c.repoCache.repositories = make([]*repo.Entry, len(repositories))
 	copy(c.repoCache.repositories, repositories)
 	c.repoCache.loaded = true
+}
+
+// GetChartValues downloads and extracts the values.yaml from a specific chart version
+func (c *helmClient) GetChartValues(ctx context.Context, repoName, chartName, version string) (string, error) {
+	// Get repository entry
+	f, err := c.loadRepoFile()
+	if err != nil {
+		return "", fmt.Errorf("failed to load repository file: %w", err)
+	}
+
+	entry := f.Get(repoName)
+	if entry == nil {
+		return "", fmt.Errorf("repository %s not found", repoName)
+	}
+
+	// Create chart downloader
+	dl := downloader.ChartDownloader{
+		Out:              os.Stdout,
+		Keyring:          c.settings.RepositoryConfig,
+		Getters:          getter.All(c.settings),
+		RepositoryConfig: c.settings.RepositoryConfig,
+		RepositoryCache:  c.settings.RepositoryCache,
+	}
+
+	// Download the chart
+	chartRef := fmt.Sprintf("%s/%s", repoName, chartName)
+	chartPath, _, err := dl.DownloadTo(chartRef, version, c.settings.RepositoryCache)
+	if err != nil {
+		return "", fmt.Errorf("failed to download chart %s:%s: %w", chartRef, version, err)
+	}
+
+	// Load the chart
+	chart, err := loader.Load(chartPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to load chart %s: %w", chartPath, err)
+	}
+
+	// Extract values.yaml
+	var valuesContent string
+	for _, file := range chart.Raw {
+		if file.Name == "values.yaml" {
+			valuesContent = string(file.Data)
+			break
+		}
+	}
+
+	// If no values.yaml found, return default values from chart metadata
+	if valuesContent == "" && chart.Values != nil {
+		valuesBytes, err := yaml.Marshal(chart.Values)
+		if err != nil {
+			return "", fmt.Errorf("failed to marshal default values: %w", err)
+		}
+		valuesContent = string(valuesBytes)
+	}
+
+	// Clean up downloaded chart file
+	if err := os.Remove(chartPath); err != nil && !os.IsNotExist(err) {
+		// Log warning but don't fail
+		fmt.Printf("Warning: failed to remove downloaded chart file %s: %v\n", chartPath, err)
+	}
+
+	return valuesContent, nil
 }

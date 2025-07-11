@@ -2,7 +2,7 @@ package utils
 
 import "reflect"
 
-// MapEquals 深度比较两个 map[string]any 是否内容一致
+// MapEquals compares two maps with string keys and values of any type for equality.
 func MapEquals(a, b map[string]any) bool {
 	return deepEqual(a, b)
 }

@@ -38,7 +38,7 @@ func (c *helmClient) InstallRelease(ctx context.Context, req *InstallRequest) (*
 	if err != nil {
 		return nil, fmt.Errorf("failed to create action config for namespace %s: %w", req.Namespace, err)
 	}
-	
+
 	install := action.NewInstall(config)
 
 	// Configure install action
@@ -87,7 +87,7 @@ func (c *helmClient) UpgradeRelease(ctx context.Context, req *UpgradeRequest) (*
 	if err != nil {
 		return nil, fmt.Errorf("failed to create action config for namespace %s: %w", req.Namespace, err)
 	}
-	
+
 	upgrade := action.NewUpgrade(config)
 
 	// Configure upgrade action
@@ -138,7 +138,7 @@ func (c *helmClient) UninstallRelease(ctx context.Context, req *UninstallRequest
 	if err != nil {
 		return fmt.Errorf("failed to create action config for namespace %s: %w", req.Namespace, err)
 	}
-	
+
 	uninstall := action.NewUninstall(config)
 
 	// Configure uninstall action
@@ -161,7 +161,7 @@ func (c *helmClient) GetRelease(ctx context.Context, name, namespace string) (*R
 	if err != nil {
 		return nil, fmt.Errorf("failed to create action config for namespace %s: %w", namespace, err)
 	}
-	
+
 	get := action.NewGet(config)
 
 	rel, err := get.Run(name)
@@ -179,7 +179,7 @@ func (c *helmClient) ListReleases(ctx context.Context, namespace string) ([]*Rel
 	if err != nil {
 		return nil, fmt.Errorf("failed to create action config for namespace %s: %w", namespace, err)
 	}
-	
+
 	list := action.NewList(config)
 
 	// Configure list action
@@ -207,7 +207,7 @@ func (c *helmClient) GetReleaseHistory(ctx context.Context, name, namespace stri
 	if err != nil {
 		return nil, fmt.Errorf("failed to create action config for namespace %s: %w", namespace, err)
 	}
-	
+
 	history := action.NewHistory(config)
 
 	releases, err := history.Run(name)
@@ -283,9 +283,13 @@ func (c *helmClient) convertRelease(rel *release.Release) *ReleaseInfo {
 		}
 	}
 
-	// TODO: Get raw values from chart - this would require loading the chart
-	// For now, we'll leave RawValues empty and implement this later
-	info.RawValues = ""
+	// Get original values from chart
+	if rel.Chart != nil && rel.Chart.Values != nil {
+		originalValuesYAML, err := yaml.Marshal(rel.Chart.Values)
+		if err == nil {
+			info.OriginalValues = string(originalValuesYAML)
+		}
+	}
 
 	return info
 }
@@ -297,7 +301,7 @@ func (c *helmClient) GetReleaseValues(ctx context.Context, name, namespace strin
 	if err != nil {
 		return "", fmt.Errorf("failed to create action config for namespace %s: %w", namespace, err)
 	}
-	
+
 	getValues := action.NewGetValues(config)
 
 	values, err := getValues.Run(name)
@@ -320,7 +324,7 @@ func (c *helmClient) GetReleaseManifest(ctx context.Context, name, namespace str
 	if err != nil {
 		return "", fmt.Errorf("failed to create action config for namespace %s: %w", namespace, err)
 	}
-	
+
 	get := action.NewGet(config)
 
 	rel, err := get.Run(name)
@@ -338,7 +342,7 @@ func (c *helmClient) RollbackRelease(ctx context.Context, name, namespace string
 	if err != nil {
 		return nil, fmt.Errorf("failed to create action config for namespace %s: %w", namespace, err)
 	}
-	
+
 	rollback := action.NewRollback(config)
 	rollback.Version = revision
 
@@ -357,7 +361,7 @@ func (c *helmClient) TestRelease(ctx context.Context, name, namespace string, ti
 	if err != nil {
 		return fmt.Errorf("failed to create action config for namespace %s: %w", namespace, err)
 	}
-	
+
 	test := action.NewReleaseTesting(config)
 	test.Timeout = timeout
 

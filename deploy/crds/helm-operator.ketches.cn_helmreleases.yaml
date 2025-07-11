@@ -529,8 +529,8 @@ spec:
                   the controller
                 format: int64
                 type: integer
-              rawValues:
-                description: RawValues contains the default values from the chart
+              originalValues:
+                description: OriginalValues contains the default values from the chart
                   for comparison
                 type: string
             type: object
