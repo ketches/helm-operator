@@ -354,7 +354,7 @@ For detailed API documentation, see:
 
 ## Contributing
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) and [Developer Guide](DEVELOPER_GUIDE.md) for details.
+We welcome contributions! Please see our [Contributing Guide](./CONTRIBUTING.md) and [Developer Guide](./DEVELOPER_GUIDE.md) for details.
 
 ### Development Workflow
 
