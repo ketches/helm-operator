@@ -48,6 +48,12 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and Cust
 	$(CONTROLLER_GEN) crd webhook paths="./..." output:crd:artifacts:config=deploy/crds
 	cp deploy/crds/*.yaml charts/helm-operator/crds/
 
+.PHONY: generate-resources
+generate-resources: ## Generate embedded resources from deploy directory
+	@echo "Generating embedded resources..."
+	@chmod +x scripts/generate-resources.sh
+	@./scripts/generate-resources.sh
+
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
@@ -232,6 +238,7 @@ release-prepare: ## Prepare for release by updating version and running checks. 
 	@echo "Preparing release $(VERSION)..."
 	@make update-version VERSION=$(VERSION)
 	@make manifests
+	@make generate-resources
 	@make test
 	@make lint
 	@echo "Release preparation completed for version $(VERSION)"
