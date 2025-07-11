@@ -91,6 +91,8 @@ Helm Operator provides a declarative way to manage Helm repositories and release
 
 ### Installation
 
+#### Install with manifests
+
 1. **Install CRDs:**
 
 ```bash
@@ -101,7 +103,23 @@ kubectl apply -f https://raw.githubusercontent.com/ketches/helm-operator/master/
 2. **Deploy the Operator:**
 
 ```bash
+kubectl create namespace ketches
 kubectl apply -f https://raw.githubusercontent.com/ketches/helm-operator/master/deploy/manifests.yaml
+```
+
+#### Install with Helm
+
+1. **Add Helm repository:**
+
+```bash
+helm repo add helm-operator https://ketches.github.io/helm-operator
+helm repo update
+```
+
+2. **Install the operator:**
+
+```bash
+helm install helm-operator helm-operator/helm-operator -n ketches --create-namespace
 ```
 
 3. **Verify Installation:**

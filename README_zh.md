@@ -91,6 +91,8 @@ Helm Operator 提供了一种声明式的方式来管理 Kubernetes 集群中的
 
 ### 安装
 
+#### 通过 manifests 安装
+
 1. **安装 CRDs:**
 
 ```bash
@@ -101,7 +103,23 @@ kubectl apply -f https://raw.githubusercontent.com/ketches/helm-operator/master/
 2. **部署 Operator:**
 
 ```bash
+kubectl create namespace ketches
 kubectl apply -f https://raw.githubusercontent.com/ketches/helm-operator/master/deploy/manifests.yaml
+```
+
+#### 通过 Helm 安装
+
+1. **添加 Helm 仓库:**
+
+```bash
+helm repo add helm-operator https://ketches.github.io/helm-operator
+helm repo update
+```
+
+2. **安装 operator:**
+
+```bash
+helm install helm-operator helm-operator/helm-operator -n ketches --create-namespace
 ```
 
 3. **验证安装:**
