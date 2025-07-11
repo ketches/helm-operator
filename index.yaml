@@ -11,4 +11,15 @@ entries:
     urls:
     - https://github.com/ketches/helm-operator/releases/download/helm-operator-0.1.0/helm-operator-0.1.0.tgz
     version: 0.1.0
-generated: "2025-07-11T00:58:19.011841581Z"
+  nginx:
+  - apiVersion: v2
+    appVersion: 1.24.0
+    created: "2025-07-11T01:48:32.872135281Z"
+    description: A Helm chart for Nginx
+    digest: 3e853291ee19ff19f6e859dfeed8aa542a64d3cf8b8319e26fad4e213d7fe10b
+    name: nginx
+    type: application
+    urls:
+    - https://github.com/ketches/helm-operator/releases/download/nginx-0.1.0/nginx-0.1.0.tgz
+    version: 0.1.0
+generated: "2025-07-11T01:48:32.872141232Z"
