@@ -28,23 +28,9 @@ import (
 
 // AddRepository adds a new repository to the Helm configuration
 func (c *helmClient) AddRepository(ctx context.Context, entry *repo.Entry) error {
-	// Get the repository file path
-	repoFile := c.settings.RepositoryConfig
-
-	// Ensure parent directory exists
-	if err := os.MkdirAll(filepath.Dir(repoFile), os.ModePerm); err != nil {
-		return fmt.Errorf("failed to create repository config directory: %w", err)
-	} else {
-		if err := os.WriteFile(repoFile, []byte{}, 0644); err != nil {
-			return fmt.Errorf("failed to create repository config file: %w", err)
-		}
-	}
-
 	// Load existing repositories
-	f, err := repo.LoadFile(repoFile)
-	if os.IsNotExist(err) {
-		f = repo.NewFile()
-	} else if err != nil {
+	f, err := c.loadRepoFile()
+	if err != nil {
 		return fmt.Errorf("failed to load repository file: %w", err)
 	}
 
@@ -62,9 +48,12 @@ func (c *helmClient) AddRepository(ctx context.Context, entry *repo.Entry) error
 	}
 
 	// Write the repository file
-	if err := f.WriteFile(repoFile, 0644); err != nil {
+	if err := f.WriteFile(c.settings.RepositoryConfig, 0644); err != nil {
 		return fmt.Errorf("failed to write repository file: %w", err)
 	}
+
+	// Update cache
+	c.updateRepositoryCache(f.Repositories)
 
 	// Update the repository index
 	return c.UpdateRepository(ctx, entry.Name)
@@ -72,9 +61,7 @@ func (c *helmClient) AddRepository(ctx context.Context, entry *repo.Entry) error
 
 // UpdateRepository updates the index for a specific repository
 func (c *helmClient) UpdateRepository(ctx context.Context, name string) error {
-	repoFile := c.settings.RepositoryConfig
-
-	f, err := repo.LoadFile(repoFile)
+	f, err := c.loadRepoFile()
 	if err != nil {
 		return fmt.Errorf("failed to load repository file: %w", err)
 	}
@@ -115,9 +102,7 @@ func (c *helmClient) UpdateRepository(ctx context.Context, name string) error {
 
 // GetRepositoryIndex returns the index file for a repository
 func (c *helmClient) GetRepositoryIndex(ctx context.Context, name string) (*repo.IndexFile, error) {
-	repoFile := c.settings.RepositoryConfig
-
-	f, err := repo.LoadFile(repoFile)
+	f, err := c.loadRepoFile()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load repository file: %w", err)
 	}
@@ -154,9 +139,7 @@ func (c *helmClient) GetRepositoryIndex(ctx context.Context, name string) (*repo
 
 // RemoveRepository removes a repository from the Helm configuration
 func (c *helmClient) RemoveRepository(ctx context.Context, name string) error {
-	repoFile := c.settings.RepositoryConfig
-
-	f, err := repo.LoadFile(repoFile)
+	f, err := c.loadRepoFile()
 	if err != nil {
 		return fmt.Errorf("failed to load repository file: %w", err)
 	}
@@ -171,9 +154,12 @@ func (c *helmClient) RemoveRepository(ctx context.Context, name string) error {
 	}
 
 	// Write the updated repository file
-	if err := f.WriteFile(repoFile, 0644); err != nil {
+	if err := f.WriteFile(c.settings.RepositoryConfig, 0644); err != nil {
 		return fmt.Errorf("failed to write repository file: %w", err)
 	}
+
+	// Update cache
+	c.updateRepositoryCache(f.Repositories)
 
 	// Remove cache files
 	cacheDir := c.settings.RepositoryCache
@@ -188,14 +174,28 @@ func (c *helmClient) RemoveRepository(ctx context.Context, name string) error {
 
 // ListRepositories returns all configured repositories
 func (c *helmClient) ListRepositories(ctx context.Context) ([]*repo.Entry, error) {
-	repoFile := c.settings.RepositoryConfig
+	// Try to get from cache first
+	c.repoCache.mu.RLock()
+	if c.repoCache.loaded && c.repoCache.repositories != nil {
+		repos := make([]*repo.Entry, len(c.repoCache.repositories))
+		copy(repos, c.repoCache.repositories)
+		c.repoCache.mu.RUnlock()
+		return repos, nil
+	}
+	c.repoCache.mu.RUnlock()
 
-	f, err := repo.LoadFile(repoFile)
-	if os.IsNotExist(err) {
-		return []*repo.Entry{}, nil
-	} else if err != nil {
+	// Cache miss or nil, load from file
+	f, err := c.loadRepoFile()
+	if err != nil {
 		return nil, fmt.Errorf("failed to load repository file: %w", err)
 	}
+
+	// Update cache
+	c.repoCache.mu.Lock()
+	c.repoCache.repositories = make([]*repo.Entry, len(f.Repositories))
+	copy(c.repoCache.repositories, f.Repositories)
+	c.repoCache.loaded = true
+	c.repoCache.mu.Unlock()
 
 	return f.Repositories, nil
 }
@@ -290,4 +290,28 @@ func (c *helmClient) GetChartVersions(ctx context.Context, repoName, chartName s
 	}
 
 	return versions, nil
+}
+
+// loadRepoFile loads the Helm repository file
+func (c *helmClient) loadRepoFile() (*repo.File, error) {
+	repoFile := c.settings.RepositoryConfig
+
+	f, err := repo.LoadFile(repoFile)
+	if os.IsNotExist(err) {
+		f = repo.NewFile()
+	} else if err != nil {
+		return nil, fmt.Errorf("failed to load repository file: %w", err)
+	}
+
+	return f, nil
+}
+
+// updateRepositoryCache updates the repository cache with the latest data
+func (c *helmClient) updateRepositoryCache(repositories []*repo.Entry) {
+	c.repoCache.mu.Lock()
+	defer c.repoCache.mu.Unlock()
+	
+	c.repoCache.repositories = make([]*repo.Entry, len(repositories))
+	copy(c.repoCache.repositories, repositories)
+	c.repoCache.loaded = true
 }

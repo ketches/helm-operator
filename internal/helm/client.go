@@ -20,6 +20,9 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
+	"sync"
 	"time"
 
 	"helm.sh/helm/v3/pkg/action"
@@ -55,13 +58,25 @@ type ReleaseManager interface {
 
 // helmClient implements the Client interface
 type helmClient struct {
-	settings *cli.EnvSettings
-	config   *action.Configuration
+	settings  *cli.EnvSettings
+	config    *action.Configuration
+	repoCache *repositoryCache
+}
+
+// repositoryCache manages cached repository data
+type repositoryCache struct {
+	mu           sync.RWMutex
+	repositories []*repo.Entry
+	loaded       bool
 }
 
 // NewClient creates a new Helm client
 func NewClient(namespace string) (Client, error) {
 	settings := cli.New()
+
+	if err := ensureRepoFile(settings); err != nil {
+		return nil, fmt.Errorf("failed to ensure repository file: %w", err)
+	}
 
 	config := new(action.Configuration)
 
@@ -76,9 +91,27 @@ func NewClient(namespace string) (Client, error) {
 	}
 
 	return &helmClient{
-		settings: settings,
-		config:   config,
+		settings:  settings,
+		config:    config,
+		repoCache: &repositoryCache{},
 	}, nil
+}
+
+// ensureRepoFile ensures the Helm repository file exists and is initialized
+func ensureRepoFile(settings *cli.EnvSettings) error {
+	// Get the repository file path
+	repoFile := settings.RepositoryConfig
+
+	// Ensure parent directory exists
+	if err := os.MkdirAll(filepath.Dir(repoFile), os.ModePerm); err != nil {
+		return fmt.Errorf("failed to create repository config directory: %w", err)
+	} else {
+		if err := os.WriteFile(repoFile, []byte{}, 0644); err != nil {
+			return fmt.Errorf("failed to create repository config file: %w", err)
+		}
+	}
+
+	return nil
 }
 
 // NewClientWithSettings creates a new Helm client with custom settings
@@ -96,8 +129,9 @@ func NewClientWithSettings(settings *cli.EnvSettings, namespace string) (Client,
 	}
 
 	return &helmClient{
-		settings: settings,
-		config:   config,
+		settings:  settings,
+		config:    config,
+		repoCache: &repositoryCache{},
 	}, nil
 }
 

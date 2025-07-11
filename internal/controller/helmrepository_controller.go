@@ -223,10 +223,36 @@ func (r *HelmRepositoryReconciler) validateSpec(repo *helmoperatorv1alpha1.HelmR
 
 // shouldSync determines if the repository should be synced
 func (r *HelmRepositoryReconciler) shouldSync(repo *helmoperatorv1alpha1.HelmRepository) bool {
+	// Always sync if never synced before
 	if repo.Status.LastSyncTime == nil {
 		return true
 	}
 
+	// Check if the repository exists in local Helm configuration
+	ctx := context.Background()
+	localRepos, err := r.HelmClient.ListRepositories(ctx)
+	if err != nil {
+		// If we can't list repositories, assume we need to sync
+		r.Log.Error(err, "Failed to list local repositories, assuming sync needed", "repository", repo.Name)
+		return true
+	}
+
+	// Check if the repository exists locally
+	repoExists := false
+	for _, localRepo := range localRepos {
+		if localRepo.Name == repo.Name {
+			repoExists = true
+			break
+		}
+	}
+
+	// If repository doesn't exist locally, we need to sync
+	if !repoExists {
+		r.Log.Info("Repository not found locally, sync needed", "repository", repo.Name)
+		return true
+	}
+
+	// Check time-based sync interval
 	interval := r.getSyncInterval(repo)
 	nextSync := repo.Status.LastSyncTime.Add(interval)
 	return time.Now().After(nextSync)
