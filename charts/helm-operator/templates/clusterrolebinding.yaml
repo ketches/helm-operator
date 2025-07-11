@@ -1,13 +1,16 @@
+{{- if .Values.serviceAccount.create -}}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: { { include "helm-operator.fullname" . } }
-  labels: { { - include "helm-operator.labels" . | nindent 4 } }
+  name: {{ include "helm-operator.fullname" . }}
+  labels: 
+    {{- include "helm-operator.labels" . | nindent 4 }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: cluster-admin
 subjects:
   - kind: ServiceAccount
-    name: { { include "helm-operator.serviceAccountName" . } }
-    namespace: { { .Release.Namespace } }
+    name: {{ include "helm-operator.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}
