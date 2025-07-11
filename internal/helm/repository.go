@@ -148,7 +148,8 @@ func (c *helmClient) RemoveRepository(ctx context.Context, name string) error {
 	}
 
 	if !f.Has(name) {
-		return fmt.Errorf("repository %s not found", name)
+		// return fmt.Errorf("repository %s not found", name)
+		return nil // If repository doesn't exist, just return nil to avoid error
 	}
 
 	// Remove repository from file

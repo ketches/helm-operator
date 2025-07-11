@@ -183,16 +183,16 @@ type UninstallRequest struct {
 
 // ReleaseInfo contains information about a release
 type ReleaseInfo struct {
-	Name          string
-	Namespace     string
-	Revision      int
-	Status        string
-	Chart         string
-	AppVersion    string
-	Updated       time.Time
-	Description   string
-	FirstDeployed *time.Time
-	LastDeployed  *time.Time
+	Name           string
+	Namespace      string
+	Revision       int
+	Status         string
+	Chart          string
+	AppVersion     string
+	Updated        time.Time
+	Description    string
+	FirstDeployed  *time.Time
+	LastDeployed   *time.Time
 	Notes          string
 	Values         string
 	OriginalValues string // Default values from the chart

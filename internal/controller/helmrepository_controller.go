@@ -214,9 +214,8 @@ func (r *HelmRepositoryReconciler) reconcileDelete(ctx context.Context, repo *he
 		// Don't block deletion, just log error
 	}
 
-	// Remove Finalizer
-	controllerutil.RemoveFinalizer(repo, utils.HelmRepositoryFinalizer)
-	if err := r.Update(ctx, repo); err != nil {
+	// Remove Finalizer with retry
+	if err := r.removeFinalizerWithRetry(ctx, repo); err != nil {
 		logger.Error(err, "Failed to remove finalizer")
 		return ctrl.Result{}, err
 	}
@@ -621,6 +620,27 @@ func sanitizeKubernetesName(name string) string {
 	}
 
 	return result
+}
+
+// removeFinalizerWithRetry removes finalizer with retry mechanism to handle conflicts
+func (r *HelmRepositoryReconciler) removeFinalizerWithRetry(ctx context.Context, repo *helmoperatorv1alpha1.HelmRepository) error {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		// Get the latest version of the resource
+		latest := &helmoperatorv1alpha1.HelmRepository{}
+		if err := r.Get(ctx, client.ObjectKeyFromObject(repo), latest); err != nil {
+			if apierrors.IsNotFound(err) {
+				// Resource already deleted, consider success
+				return nil
+			}
+			return err
+		}
+
+		// Remove finalizer from the latest version
+		controllerutil.RemoveFinalizer(latest, utils.HelmRepositoryFinalizer)
+		
+		// Update the resource
+		return r.Update(ctx, latest)
+	})
 }
 
 // SetupWithManager sets up the controller with the Manager.
