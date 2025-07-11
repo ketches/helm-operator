@@ -214,9 +214,9 @@ endef
 ##@ Release Management
 
 .PHONY: update-version
-update-version: ## Update version across all files. Usage: make update-version VERSION=0.3.0
+update-version: ## Update version across all files. Usage: make update-version VERSION=1.0.0
 	@if [ -z "$(VERSION)" ]; then \
-		echo "Error: VERSION is required. Usage: make update-version VERSION=0.3.0"; \
+		echo "Error: VERSION is required. Usage: make update-version VERSION=1.0.0"; \
 		exit 1; \
 	fi
 	@echo "Updating version to $(VERSION)..."
@@ -224,9 +224,9 @@ update-version: ## Update version across all files. Usage: make update-version V
 	@./scripts/update-version.sh $(VERSION)
 
 .PHONY: release-prepare
-release-prepare: ## Prepare for release by updating version and running checks. Usage: make release-prepare VERSION=0.3.0
+release-prepare: ## Prepare for release by updating version and running checks. Usage: make release-prepare VERSION=1.0.0
 	@if [ -z "$(VERSION)" ]; then \
-		echo "Error: VERSION is required. Usage: make release-prepare VERSION=0.3.0"; \
+		echo "Error: VERSION is required. Usage: make release-prepare VERSION=1.0.0"; \
 		exit 1; \
 	fi
 	@echo "Preparing release $(VERSION)..."
@@ -242,9 +242,9 @@ release-prepare: ## Prepare for release by updating version and running checks. 
 	@echo "4. Push: git push origin main && git push origin v$(VERSION)"
 
 .PHONY: release-tag
-release-tag: ## Create and push git tag. Usage: make release-tag VERSION=0.3.0 MESSAGE="Release notes"
+release-tag: ## Create and push git tag. Usage: make release-tag VERSION=1.0.0 MESSAGE="Release notes"
 	@if [ -z "$(VERSION)" ]; then \
-		echo "Error: VERSION is required. Usage: make release-tag VERSION=0.3.0"; \
+		echo "Error: VERSION is required. Usage: make release-tag VERSION=1.0.0"; \
 		exit 1; \
 	fi
 	@if [ -z "$(MESSAGE)" ]; then \
@@ -284,9 +284,9 @@ generate-release-notes: ## Generate GitHub release notes. Usage: make generate-r
 	fi
 
 .PHONY: release-notes-file
-release-notes-file: ## Generate release notes and save to file. Usage: make release-notes-file VERSION=0.3.0
+release-notes-file: ## Generate release notes and save to file. Usage: make release-notes-file VERSION=1.0.0
 	@if [ -z "$(VERSION)" ]; then \
-		echo "Error: VERSION is required. Usage: make release-notes-file VERSION=0.3.0"; \
+		echo "Error: VERSION is required. Usage: make release-notes-file VERSION=1.0.0"; \
 		exit 1; \
 	fi
 	@echo "Generating release notes for v$(VERSION)..."
@@ -295,9 +295,9 @@ release-notes-file: ## Generate release notes and save to file. Usage: make rele
 	@echo "Release notes saved to release-notes-v$(VERSION).md"
 
 .PHONY: release-complete
-release-complete: ## Complete release process. Usage: make release-complete VERSION=0.3.0
+release-complete: ## Complete release process. Usage: make release-complete VERSION=1.0.0
 	@if [ -z "$(VERSION)" ]; then \
-		echo "Error: VERSION is required. Usage: make release-complete VERSION=0.3.0"; \
+		echo "Error: VERSION is required. Usage: make release-complete VERSION=1.0.0"; \
 		exit 1; \
 	fi
 	@echo "Completing release $(VERSION)..."

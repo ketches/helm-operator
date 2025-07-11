@@ -31,7 +31,7 @@ Use the provided script to update version information across the project:
 chmod +x scripts/update-version.sh
 
 # Update to new version
-./scripts/update-version.sh 0.3.0
+./scripts/update-version.sh 1.0.0
 ```
 
 This script will update:
@@ -52,14 +52,14 @@ Verify that all version references have been updated correctly.
 
 ```bash
 git add .
-git commit -m "chore: bump version to 0.3.0"
+git commit -m "chore: bump version to 1.0.0"
 ```
 
 ### 4. Create and Push Git Tag
 
 ```bash
 # Create annotated tag with release notes
-git tag -a v0.3.0 -m "Release v0.3.0
+git tag -a v1.0.0 -m "Release v1.0.0
 
 Features:
 - List new features here
@@ -71,18 +71,18 @@ Breaking Changes:
 - List any breaking changes here"
 
 # Push the tag
-git push origin v0.3.0
+git push origin v1.0.0
 ```
 
 ### 5. Build and Push Docker Image
 
 ```bash
 # Build the Docker image
-docker build -t ketches/helm-operator:0.3.0 .
+docker build -t ketches/helm-operator:1.0.0 .
 docker build -t ketches/helm-operator:latest .
 
 # Push to registry
-docker push ketches/helm-operator:0.3.0
+docker push ketches/helm-operator:1.0.0
 docker push ketches/helm-operator:latest
 ```
 
@@ -94,14 +94,14 @@ helm package charts/helm-operator
 
 # If you have a chart repository, push to it
 # helm repo index . --url https://your-chart-repo.com
-# Upload helm-operator-0.3.0.tgz to your chart repository
+# Upload helm-operator-1.0.0.tgz to your chart repository
 ```
 
 ### 7. Create GitHub Release
 
 1. Go to the [Releases page](https://github.com/ketches/helm-operator/releases)
 2. Click "Create a new release"
-3. Select the tag you just created (v0.3.0)
+3. Select the tag you just created (v1.0.0)
 4. Fill in the release title and description
 5. Attach any relevant files (e.g., packaged Helm chart)
 6. Publish the release
@@ -183,8 +183,8 @@ If you need to rollback a release:
 1. **Revert the Git tag:**
 
    ```bash
-   git tag -d v0.3.0
-   git push origin :refs/tags/v0.3.0
+   git tag -d v1.0.0
+   git push origin :refs/tags/v1.0.0
    ```
 
 2. **Remove Docker images** (if possible)
@@ -216,6 +216,6 @@ If you need to rollback a release:
    - Validate with `helm template charts/helm-operator`
 
 4. **Git tag already exists**
-   - Delete the existing tag: `git tag -d v0.3.0`
-   - Push deletion: `git push origin :refs/tags/v0.3.0`
+   - Delete the existing tag: `git tag -d v1.0.0`
+   - Push deletion: `git push origin :refs/tags/v1.0.0`
    - Create new tag with correct information

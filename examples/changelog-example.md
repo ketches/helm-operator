@@ -27,7 +27,7 @@ make generate-release-notes
 make generate-release-notes FROM=v0.1.0 TO=v0.2.0
 
 # Generate release notes and save to file
-make release-notes-file VERSION=0.3.0
+make release-notes-file VERSION=1.0.0
 ```
 
 ## Example Output
@@ -100,14 +100,15 @@ make release-notes-file VERSION=0.3.0
 
 ```bash
 # Complete release with automatic changelog generation
-make release-complete VERSION=0.3.0
+make release-complete VERSION=1.0.0
 ```
 
 This will:
+
 1. Update version numbers
 2. Run tests and checks
 3. Commit changes
-4. Generate release notes file (`release-notes-v0.3.0.md`)
+4. Generate release notes file (`release-notes-v1.0.0.md`)
 5. Create and push git tag
 6. Package Helm chart
 
@@ -115,19 +116,19 @@ This will:
 
 ```bash
 # 1. Prepare release
-make release-prepare VERSION=0.3.0
+make release-prepare VERSION=1.0.0
 
 # 2. Generate and review release notes
-make release-notes-file VERSION=0.3.0
-cat release-notes-v0.3.0.md
+make release-notes-file VERSION=1.0.0
+cat release-notes-v1.0.0.md
 
 # 3. Edit release notes if needed
-vim release-notes-v0.3.0.md
+vim release-notes-v1.0.0.md
 
 # 4. Commit and tag
 git add .
-git commit -m "chore: bump version to 0.3.0"
-make release-tag VERSION=0.3.0 MESSAGE="$(cat release-notes-v0.3.0.md)"
+git commit -m "chore: bump version to 1.0.0"
+make release-tag VERSION=1.0.0 MESSAGE="$(cat release-notes-v1.0.0.md)"
 
 # 5. Package chart
 make helm-package
@@ -151,6 +152,7 @@ The changelog generator recognizes conventional commit formats:
 ### Breaking Changes Detection
 
 The tool automatically detects breaking changes:
+
 - Commits with `BREAKING CHANGE:` in the message
 - Commits with `!` after the type (e.g., `feat!:`)
 
@@ -194,6 +196,7 @@ git commit -m "feat: add ConfigMap creation for chart values
 ### Modify Changelog Format
 
 Edit `scripts/generate-changelog.sh` to customize:
+
 - Commit categorization
 - Output format
 - Emoji usage
@@ -202,6 +205,7 @@ Edit `scripts/generate-changelog.sh` to customize:
 ### Modify Release Notes Format
 
 Edit `scripts/generate-release-notes.sh` to customize:
+
 - GitHub-specific formatting
 - Contributor detection
 - Section organization

@@ -2,13 +2,13 @@
 
 # Script to update version information across the project
 # Usage: ./scripts/update-version.sh <new-version>
-# Example: ./scripts/update-version.sh 0.3.0
+# Example: ./scripts/update-version.sh 1.0.0
 
 set -e
 
 if [ $# -eq 0 ]; then
     echo "Usage: $0 <new-version>"
-    echo "Example: $0 0.3.0"
+    echo "Example: $0 1.0.0"
     exit 1
 fi
 

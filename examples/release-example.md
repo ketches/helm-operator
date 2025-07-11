@@ -8,7 +8,7 @@ For a complete automated release:
 
 ```bash
 # This will update versions, run tests, commit, tag, and package
-make release-complete VERSION=0.3.0
+make release-complete VERSION=1.0.0
 ```
 
 ## Step-by-Step Release
@@ -17,10 +17,11 @@ make release-complete VERSION=0.3.0
 
 ```bash
 # Update versions and run all checks
-make release-prepare VERSION=0.3.0
+make release-prepare VERSION=1.0.0
 ```
 
 This will:
+
 - Update `charts/helm-operator/Chart.yaml`
 - Update `charts/helm-operator/values.yaml` (if applicable)
 - Update version references in `README.md`
@@ -39,10 +40,10 @@ git diff
 ```bash
 # Commit the version changes
 git add .
-git commit -m "chore: bump version to 0.3.0"
+git commit -m "chore: bump version to 1.0.0"
 
 # Create and push the tag
-make release-tag VERSION=0.3.0 MESSAGE="Release v0.3.0
+make release-tag VERSION=1.0.0 MESSAGE="Release v1.0.0
 
 Features:
 - New feature 1
@@ -57,10 +58,10 @@ Bug Fixes:
 
 ```bash
 # Build the Docker image
-make docker-build IMG=ketches/helm-operator:0.3.0
+make docker-build IMG=ketches/helm-operator:1.0.0
 
 # Push to registry
-make docker-push IMG=ketches/helm-operator:0.3.0
+make docker-push IMG=ketches/helm-operator:1.0.0
 ```
 
 ### 5. Package Helm Chart
@@ -70,7 +71,7 @@ make docker-push IMG=ketches/helm-operator:0.3.0
 make helm-package
 ```
 
-This creates `helm-operator-0.3.0.tgz` in the current directory.
+This creates `helm-operator-1.0.0.tgz` in the current directory.
 
 ## Manual Version Update Only
 
@@ -78,13 +79,13 @@ If you just want to update version numbers without running tests:
 
 ```bash
 # Update version numbers only
-make update-version VERSION=0.3.0
+make update-version VERSION=1.0.0
 ```
 
 Or use the script directly:
 
 ```bash
-./scripts/update-version.sh 0.3.0
+./scripts/update-version.sh 1.0.0
 ```
 
 ## Files Updated by Version Scripts
@@ -92,20 +93,23 @@ Or use the script directly:
 The version update process modifies these files:
 
 1. **charts/helm-operator/Chart.yaml**
+
    ```yaml
-   version: 0.3.0
-   appVersion: "0.3.0"
+   version: 1.0.0
+   appVersion: "1.0.0"
    ```
 
 2. **charts/helm-operator/values.yaml** (if it contains image tags)
+
    ```yaml
    image:
-     tag: "0.3.0"
+     tag: "1.0.0"
    ```
 
 3. **README.md** (version references in examples)
+
    ```markdown
-   docker pull ketches/helm-operator:0.3.0
+   docker pull ketches/helm-operator:1.0.0
    ```
 
 ## Verification
@@ -114,13 +118,13 @@ After release, verify everything is correct:
 
 ```bash
 # Check the tag was created
-git tag -l | grep v0.3.0
+git tag -l | grep v1.0.0
 
 # Check Chart.yaml
 grep -E "^(version|appVersion):" charts/helm-operator/Chart.yaml
 
 # Check if Docker image exists
-docker pull ketches/helm-operator:0.3.0
+docker pull ketches/helm-operator:1.0.0
 
 # Verify Helm chart
 helm lint charts/helm-operator
@@ -132,8 +136,8 @@ If you need to rollback:
 
 ```bash
 # Delete the tag locally and remotely
-git tag -d v0.3.0
-git push origin :refs/tags/v0.3.0
+git tag -d v1.0.0
+git push origin :refs/tags/v1.0.0
 
 # Revert version changes
 git revert HEAD
