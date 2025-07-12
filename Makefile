@@ -298,7 +298,7 @@ release-notes-file: ## Generate release notes and save to file. Usage: make rele
 	fi
 	@echo "Generating release notes for v$(VERSION)..."
 	@chmod +x scripts/generate-release-notes.sh
-	@./scripts/generate-release-notes.sh v$(VERSION) > release-notes-v$(VERSION).md
+	@./scripts/generate-release-notes.sh v$(VERSION) > docs/release-notes/v$(VERSION).md
 	@echo "Release notes saved to release-notes-v$(VERSION).md"
 
 .PHONY: release-complete
@@ -309,11 +309,11 @@ release-complete: ## Complete release process. Usage: make release-complete VERS
 	fi
 	@echo "Completing release $(VERSION)..."
 	@make release-prepare VERSION=$(VERSION)
+	@make release-notes-file VERSION=$(VERSION)
 	@echo "Committing version changes..."
 	@git add .
 	@git commit -m "chore: bump version to $(VERSION)"
 	@echo "Generating release notes..."
-	@make release-notes-file VERSION=$(VERSION)
 	@make release-tag VERSION=$(VERSION) MESSAGE="Release v$(VERSION)"
 	@make helm-package
 	@echo "Release $(VERSION) completed successfully!"
