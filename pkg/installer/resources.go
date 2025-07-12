@@ -30,10 +30,10 @@ spec:
     - jsonPath: .spec.chart.version
       name: Version
       type: string
-    - jsonPath: .status.conditions[?(@.type==\"Ready\")].status
+    - jsonPath: .status.conditions[?(@.type=="Ready")].status
       name: Ready
       type: string
-    - jsonPath: .status.conditions[?(@.type==\"Ready\")].message
+    - jsonPath: .status.conditions[?(@.type=="Ready")].message
       name: Status
       type: string
     - jsonPath: .metadata.creationTimestamp
@@ -278,8 +278,8 @@ spec:
                     status:
                       description: status of the condition, one of True, False, Unknown.
                       enum:
-                      - \"True\"
-                      - \"False\"
+                      - "True"
+                      - "False"
                       - Unknown
                       type: string
                     type:
@@ -570,10 +570,10 @@ spec:
     - jsonPath: .spec.url
       name: URL
       type: string
-    - jsonPath: .status.conditions[?(@.type==\"Ready\")].status
+    - jsonPath: .status.conditions[?(@.type=="Ready")].status
       name: Ready
       type: string
-    - jsonPath: .status.conditions[?(@.type==\"Ready\")].message
+    - jsonPath: .status.conditions[?(@.type=="Ready")].message
       name: Status
       type: string
     - jsonPath: .metadata.creationTimestamp
@@ -773,8 +773,8 @@ spec:
                     status:
                       description: status of the condition, one of True, False, Unknown.
                       enum:
-                      - \"True\"
-                      - \"False\"
+                      - "True"
+                      - "False"
                       - Unknown
                       type: string
                     type:
@@ -833,7 +833,7 @@ metadata:
   name: helm-operator
   namespace: ketches
   labels:
-    ketches.cn/owned: \"true\"
+    ketches.cn/owned: "true"
     app.ketches.cn/name: helm-operator
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -841,7 +841,7 @@ kind: ClusterRoleBinding
 metadata:
   name: helm-operator
   labels:
-    ketches.cn/owned: \"true\"
+    ketches.cn/owned: "true"
     app.ketches.cn/name: helm-operator
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -858,7 +858,7 @@ metadata:
   name: helm-operator
   namespace: ketches
   labels:
-    ketches.cn/owned: \"true\"
+    ketches.cn/owned: "true"
     app.ketches.cn/name: helm-operator
 spec:
   selector:
@@ -893,7 +893,7 @@ spec:
           periodSeconds: 10
         resources:
           limits:
-            cpu: \"1\"
+            cpu: "1"
             memory: 1Gi
           requests:
             cpu: 100m

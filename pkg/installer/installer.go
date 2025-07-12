@@ -3,6 +3,7 @@ package installer
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/serializer/yaml"
@@ -51,24 +52,32 @@ func (i *HelmOperatorInstaller) applyResource(ctx context.Context, resourceYAML 
 		return nil
 	}
 
-	// Parse YAML to unstructured object
-	obj := &unstructured.Unstructured{}
-	decoder := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
+	// Split multi-document YAML
+	documents := strings.Split(resourceYAML, "\n---\n")
 
-	if _, _, err := decoder.Decode([]byte(resourceYAML), nil, obj); err != nil {
-		return fmt.Errorf("failed to decode YAML: %w", err)
-	}
-
-	// Apply the resource
-	if err := i.client.Create(ctx, obj); err != nil {
-		// If resource already exists, try to update it
-		if client.IgnoreAlreadyExists(err) == nil {
-			return i.client.Update(ctx, obj)
+	for _, doc := range documents {
+		if strings.TrimSpace(doc) == "" {
+			continue
 		}
-		return err
-	}
 
-	fmt.Printf("Applied resource %d: %s/%s\n", idx, obj.GetKind(), obj.GetName())
+		// Parse YAML to unstructured object
+		obj := &unstructured.Unstructured{}
+		decoder := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
+
+		if _, _, err := decoder.Decode([]byte(doc), nil, obj); err != nil {
+			return fmt.Errorf("failed to decode YAML: %w", err)
+		}
+
+		// Apply the resource
+		if err := i.client.Create(ctx, obj); err != nil {
+			// If resource already exists, try to update it
+			if client.IgnoreAlreadyExists(err) == nil {
+				return i.client.Update(ctx, obj)
+			}
+			return err
+		}
+		fmt.Printf("Applied resource %d: %s/%s\n", idx, obj.GetKind(), obj.GetName())
+	}
 	return nil
 }
 
@@ -79,20 +88,27 @@ func (i *HelmOperatorInstaller) deleteResource(ctx context.Context, resourceYAML
 		return nil
 	}
 
-	// Parse YAML to unstructured object
-	obj := &unstructured.Unstructured{}
-	decoder := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
+	// Split multi-document YAML
+	documents := strings.Split(resourceYAML, "\n---\n")
 
-	if _, _, err := decoder.Decode([]byte(resourceYAML), nil, obj); err != nil {
-		return fmt.Errorf("failed to decode YAML: %w", err)
+	for _, doc := range documents {
+		if strings.TrimSpace(doc) == "" {
+			continue
+		}
+		// Parse YAML to unstructured object
+		obj := &unstructured.Unstructured{}
+		decoder := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
+
+		if _, _, err := decoder.Decode([]byte(doc), nil, obj); err != nil {
+			return fmt.Errorf("failed to decode YAML: %w", err)
+		}
+
+		// Delete the resource
+		if err := i.client.Delete(ctx, obj); err != nil {
+			return client.IgnoreNotFound(err)
+		}
+		fmt.Printf("Deleted resource %d: %s/%s\n", idx, obj.GetKind(), obj.GetName())
 	}
-
-	// Delete the resource
-	if err := i.client.Delete(ctx, obj); err != nil {
-		return client.IgnoreNotFound(err)
-	}
-
-	fmt.Printf("Deleted resource %d: %s/%s\n", idx, obj.GetKind(), obj.GetName())
 	return nil
 }
 
@@ -108,44 +124,52 @@ func (i *HelmOperatorInstaller) GetStatus(ctx context.Context) (*InstallationSta
 			continue
 		}
 
-		// Parse YAML to get resource info
-		obj := &unstructured.Unstructured{}
-		decoder := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
+		// Split multi-document YAML
+		documents := strings.Split(resourceYAML, "\n---\n")
 
-		if _, _, err := decoder.Decode([]byte(resourceYAML), nil, obj); err != nil {
-			status.Resources = append(status.Resources, ResourceStatus{
-				Index:  idx,
-				Kind:   "Unknown",
-				Name:   "Unknown",
-				Exists: false,
-				Error:  err.Error(),
-			})
-			status.Installed = false
-			continue
-		}
+		for _, doc := range documents {
+			if strings.TrimSpace(doc) == "" {
+				continue
+			}
+			// Parse YAML to get resource info
+			obj := &unstructured.Unstructured{}
+			decoder := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
 
-		// Check if resource exists
-		existing := &unstructured.Unstructured{}
-		existing.SetGroupVersionKind(obj.GetObjectKind().GroupVersionKind())
-		err := i.client.Get(ctx, client.ObjectKeyFromObject(obj), existing)
+			if _, _, err := decoder.Decode([]byte(doc), nil, obj); err != nil {
+				status.Resources = append(status.Resources, ResourceStatus{
+					Index:  idx,
+					Kind:   "Unknown",
+					Name:   "Unknown",
+					Exists: false,
+					Error:  err.Error(),
+				})
+				status.Installed = false
+				continue
+			}
 
-		resourceStatus := ResourceStatus{
-			Index:     idx,
-			Kind:      obj.GetKind(),
-			Name:      obj.GetName(),
-			Namespace: obj.GetNamespace(),
-			Exists:    err == nil,
-		}
+			// Check if resource exists
+			existing := &unstructured.Unstructured{}
+			existing.SetGroupVersionKind(obj.GetObjectKind().GroupVersionKind())
+			err := i.client.Get(ctx, client.ObjectKeyFromObject(obj), existing)
 
-		if err != nil && client.IgnoreNotFound(err) != nil {
-			resourceStatus.Error = err.Error()
-			status.Installed = false
-		}
+			resourceStatus := ResourceStatus{
+				Index:     idx,
+				Kind:      obj.GetKind(),
+				Name:      obj.GetName(),
+				Namespace: obj.GetNamespace(),
+				Exists:    err == nil,
+			}
 
-		status.Resources = append(status.Resources, resourceStatus)
+			if err != nil && client.IgnoreNotFound(err) != nil {
+				resourceStatus.Error = err.Error()
+				status.Installed = false
+			}
 
-		if !resourceStatus.Exists {
-			status.Installed = false
+			status.Resources = append(status.Resources, resourceStatus)
+
+			if !resourceStatus.Exists {
+				status.Installed = false
+			}
 		}
 	}
 

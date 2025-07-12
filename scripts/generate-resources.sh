@@ -25,7 +25,7 @@ EOF
 # Function to escape Go string literals
 escape_go_string() {
     # Escape backslashes and quotes for Go string literals
-    sed 's/\\/\\\\/g; s/"/\\"/g; s/`/\\`/g'
+    sed 's/\\/\\\\/g; s/`/\\`/g'
 }
 
 # Process each YAML file in deploy directory
