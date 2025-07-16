@@ -1,6 +1,6 @@
 # Image URL to use all building/pushing image targets
 IMG ?= ketches/helm-operator
-VERSION ?= 0.2.2
+VERSION ?= 0.2.3
 ALIYUN_REGISTRY ?= registry.cn-hangzhou.aliyuncs.com
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
@@ -124,8 +124,8 @@ run: manifests generate fmt vet ## Run a controller from your host.
 PLATFORMS ?= linux/arm64,linux/amd64
 .PHONY: docker-build
 docker-build:
-	- $(CONTAINER_TOOL) buildx create --name helm-operator-builder
-	$(CONTAINER_TOOL) buildx use helm-operator-builder
+	- $(CONTAINER_TOOL) buildx create --name mybuilder
+	$(CONTAINER_TOOL) buildx use mybuilder
 	- $(CONTAINER_TOOL) buildx build --push --platform=$(PLATFORMS) -t ${IMG} -t ${IMG}:v${VERSION} -t ${ALIYUN_REGISTRY}/${IMG} -t ${ALIYUN_REGISTRY}/${IMG}:v${VERSION} .
 
 .PHONY: docker-build-local

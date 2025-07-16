@@ -527,16 +527,10 @@ func (r *HelmRepositoryReconciler) createChartVersionConfigMap(ctx context.Conte
 			Name:      configMapName,
 			Namespace: repo.Namespace,
 			Labels: map[string]string{
-				"app.kubernetes.io/name":              "helm-operator",
-				"app.kubernetes.io/component":         "chart-values",
+				"ketches.cn/owned":                    "true",
 				"helm-operator.ketches.cn/repository": repo.Name,
 				"helm-operator.ketches.cn/chart":      chartName,
 				"helm-operator.ketches.cn/version":    version,
-			},
-			Annotations: map[string]string{
-				"helm-operator.ketches.cn/chart-name":    chartName,
-				"helm-operator.ketches.cn/chart-version": version,
-				"helm-operator.ketches.cn/repository":    repo.Name,
 			},
 		},
 		Data: map[string]string{
@@ -561,7 +555,6 @@ func (r *HelmRepositoryReconciler) createChartVersionConfigMap(ctx context.Conte
 			logger.Info("Updating ConfigMap for chart values")
 			existingConfigMap.Data = configMap.Data
 			existingConfigMap.Labels = configMap.Labels
-			existingConfigMap.Annotations = configMap.Annotations
 
 			if err := r.Update(ctx, existingConfigMap); err != nil {
 				return fmt.Errorf("failed to update ConfigMap: %w", err)
