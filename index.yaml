@@ -2,6 +2,16 @@ apiVersion: v1
 entries:
   helm-operator:
   - apiVersion: v2
+    appVersion: 0.2.3
+    created: "2025-07-18T01:14:20.860263944Z"
+    description: A Helm chart for Kubernetes
+    digest: 6d44c13c436f364165b6aa0796c841685c8eed5918b17619b981e6ae6f1667b5
+    name: helm-operator
+    type: application
+    urls:
+    - https://github.com/ketches/helm-operator/releases/download/helm-operator-0.2.3/helm-operator-0.2.3.tgz
+    version: 0.2.3
+  - apiVersion: v2
     appVersion: 0.2.2
     created: "2025-07-12T16:21:55.324496353Z"
     description: A Helm chart for Kubernetes
@@ -52,4 +62,4 @@ entries:
     urls:
     - https://github.com/ketches/helm-operator/releases/download/nginx-0.1.0/nginx-0.1.0.tgz
     version: 0.1.0
-generated: "2025-07-12T16:21:55.324518485Z"
+generated: "2025-07-18T01:14:20.860286175Z"
