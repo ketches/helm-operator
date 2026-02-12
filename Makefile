@@ -1,6 +1,6 @@
 # Image URL to use all building/pushing image targets
 IMG ?= ketches/helm-operator
-VERSION ?= 0.3.0
+VERSION ?= 0.3.1
 ALIYUN_REGISTRY ?= registry.cn-hangzhou.aliyuncs.com
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
@@ -309,10 +309,12 @@ release-complete: ## Complete release process. Usage: make release-complete VERS
 	fi
 	@echo "Completing release $(VERSION)..."
 	@make release-prepare VERSION=$(VERSION)
+	@git add .
+	@git commit -m "chore: bump version to $(VERSION)"
 	@make release-notes-file VERSION=$(VERSION)
 	@echo "Committing version changes..."
 	@git add .
-	@git commit -m "chore: bump version to $(VERSION)"
+	@git commit -m "chore: generate release notes for $(VERSION)"
 	@echo "Generating release notes..."
 	@make release-tag VERSION=$(VERSION) MESSAGE="Release v$(VERSION)"
 	@make helm-package

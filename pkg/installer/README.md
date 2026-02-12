@@ -113,7 +113,7 @@ The embedded resources are automatically generated from the `deploy/` directory 
 make generate-resources
 
 # Resources are automatically regenerated during release
-make release-complete VERSION=0.3.0
+make release-complete VERSION=1.0.0
 ```
 
 ## API Reference
