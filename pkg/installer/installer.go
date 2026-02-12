@@ -5,10 +5,17 @@ import (
 	"fmt"
 	"strings"
 
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/serializer/yaml"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+// DefaultNamespace is the namespace where helm-operator is installed.
+// It is not deleted on Uninstall so that other resources in the namespace are preserved.
+const DefaultNamespace = "ketches"
 
 // HelmOperatorInstaller provides methods to install helm-operator
 type HelmOperatorInstaller struct {
@@ -22,8 +29,34 @@ func NewInstaller(client client.Client) *HelmOperatorInstaller {
 	}
 }
 
+// ensureNamespace creates the DefaultNamespace if it does not exist.
+func (i *HelmOperatorInstaller) ensureNamespace(ctx context.Context) error {
+	ns := &corev1.Namespace{}
+	err := i.client.Get(ctx, client.ObjectKey{Name: DefaultNamespace}, ns)
+	if err == nil {
+		return nil
+	}
+	if !apierrors.IsNotFound(err) {
+		return fmt.Errorf("failed to get namespace %s: %w", DefaultNamespace, err)
+	}
+	ns = &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: DefaultNamespace,
+		},
+	}
+	if err := i.client.Create(ctx, ns); err != nil {
+		return fmt.Errorf("failed to create namespace %s: %w", DefaultNamespace, err)
+	}
+	fmt.Printf("Created namespace: %s\n", DefaultNamespace)
+	return nil
+}
+
 // Install installs the helm-operator using embedded resources
 func (i *HelmOperatorInstaller) Install(ctx context.Context) error {
+	// Ensure ketches namespace exists before applying any resource
+	if err := i.ensureNamespace(ctx); err != nil {
+		return fmt.Errorf("ensure namespace: %w", err)
+	}
 	// Parse and apply all resources
 	for idx, resourceYAML := range resources {
 		if err := i.applyResource(ctx, resourceYAML, idx); err != nil {
@@ -101,6 +134,12 @@ func (i *HelmOperatorInstaller) deleteResource(ctx context.Context, resourceYAML
 
 		if _, _, err := decoder.Decode([]byte(doc), nil, obj); err != nil {
 			return fmt.Errorf("failed to decode YAML: %w", err)
+		}
+
+		// Do not delete the ketches namespace on uninstall; it may contain other resources
+		if obj.GetKind() == "Namespace" && obj.GetName() == DefaultNamespace {
+			fmt.Printf("Skipping deletion of namespace %s (preserved for other resources)\n", DefaultNamespace)
+			continue
 		}
 
 		// Delete the resource
