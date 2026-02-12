@@ -20,7 +20,8 @@ get_previous_tag() {
 
 generate_release_notes() {
     local from_tag=$1
-    local to_tag=$2
+    local to_ref=$2
+    local display_to_tag=${3:-$2}
     
     declare -a features=()
     declare -a fixes=()
@@ -28,9 +29,9 @@ generate_release_notes() {
     
     local range
     if [ -z "$from_tag" ]; then
-        range="$to_tag"
+        range="$to_ref"
     else
-        range="$from_tag..$to_tag"
+        range="$from_tag..$to_ref"
     fi
     
     while IFS='|' read -r hash message author date; do
@@ -82,27 +83,34 @@ generate_release_notes() {
     done
     echo ""
     
-    if [ -n "$from_tag" ] && [ -n "$to_tag" ]; then
+    if [ -n "$from_tag" ] && [ -n "$display_to_tag" ]; then
         local repo_url=$(git config --get remote.origin.url | sed 's/\.git$//' | sed 's/git@github.com:/https:\/\/github.com\//')
-        echo "**Full Changelog**: $repo_url/compare/$from_tag...$to_tag"
+        echo "**Full Changelog**: $repo_url/compare/$from_tag...$display_to_tag"
     fi
 }
 
 FROM_TAG=""
-TO_TAG=""
+TO_REF=""
+DISPLAY_TO_TAG=""
 
 if [ $# -eq 0 ]; then
-    TO_TAG="HEAD"
+    TO_REF="HEAD"
+    DISPLAY_TO_TAG="HEAD"
     FROM_TAG=$(get_latest_tag)
 elif [ $# -eq 1 ]; then
-    TO_TAG=$1
-    FROM_TAG=$(get_previous_tag "$TO_TAG")
+    # Single argument: version we're releasing (e.g. v1.0.0). The tag often doesn't exist yet
+    # (release-complete generates notes before creating the tag), so use HEAD as range end.
+    DISPLAY_TO_TAG=$1
+    FROM_TAG=$(get_latest_tag)
+    TO_REF="HEAD"
 elif [ $# -eq 2 ]; then
     FROM_TAG=$1
-    TO_TAG=$2
+    TO_REF=$2
+    DISPLAY_TO_TAG=$2
 else
     echo "Usage: $0 [from-tag] [to-tag]"
+    echo "   Or: $0 <version>  (e.g. v1.0.0 — uses HEAD as end, for use before tag exists)"
     exit 1
 fi
 
-generate_release_notes "$FROM_TAG" "$TO_TAG"
+generate_release_notes "$FROM_TAG" "$TO_REF" "$DISPLAY_TO_TAG"
