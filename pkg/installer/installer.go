@@ -103,11 +103,21 @@ func (i *HelmOperatorInstaller) applyResource(ctx context.Context, resourceYAML 
 
 		// Apply the resource
 		if err := i.client.Create(ctx, obj); err != nil {
-			// If resource already exists, try to update it
-			if client.IgnoreAlreadyExists(err) == nil {
-				return i.client.Update(ctx, obj)
+			if !apierrors.IsAlreadyExists(err) {
+				return err
 			}
-			return err
+			// Resource exists: get current version and update (Update requires resourceVersion)
+			existing := &unstructured.Unstructured{}
+			existing.SetGroupVersionKind(obj.GetObjectKind().GroupVersionKind())
+			if getErr := i.client.Get(ctx, client.ObjectKeyFromObject(obj), existing); getErr != nil {
+				return fmt.Errorf("failed to get existing %s %s for update: %w", obj.GetKind(), obj.GetName(), getErr)
+			}
+			obj.SetResourceVersion(existing.GetResourceVersion())
+			if err := i.client.Update(ctx, obj); err != nil {
+				return fmt.Errorf("failed to update %s %s: %w", obj.GetKind(), obj.GetName(), err)
+			}
+			fmt.Printf("Updated existing resource %d: %s/%s\n", idx, obj.GetKind(), obj.GetName())
+			continue
 		}
 		fmt.Printf("Applied resource %d: %s/%s\n", idx, obj.GetKind(), obj.GetName())
 	}
