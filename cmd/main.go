@@ -214,7 +214,7 @@ func main() {
 		Client:     mgr.GetClient(),
 		Log:        ctrl.Log.WithName("controllers").WithName("HelmRepository"),
 		Scheme:     mgr.GetScheme(),
-		Recorder:   mgr.GetEventRecorderFor("helmrepository-controller"),
+		Recorder:   mgr.GetEventRecorder("helmrepository-controller"),
 		HelmClient: helmClient,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "HelmRepository")
@@ -224,7 +224,7 @@ func main() {
 		Client:     mgr.GetClient(),
 		Log:        ctrl.Log.WithName("controllers").WithName("HelmRelease"),
 		Scheme:     mgr.GetScheme(),
-		Recorder:   mgr.GetEventRecorderFor("helmrelease-controller"),
+		Recorder:   mgr.GetEventRecorder("helmrelease-controller"),
 		HelmClient: helmClient,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "HelmRelease")

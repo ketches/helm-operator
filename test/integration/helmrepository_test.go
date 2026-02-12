@@ -91,7 +91,7 @@ var _ = BeforeSuite(func() {
 		Client:     mgr.GetClient(),
 		Log:        ctrl.Log.WithName("controllers").WithName("HelmRepository"),
 		Scheme:     mgr.GetScheme(),
-		Recorder:   mgr.GetEventRecorderFor("helmrepository-controller"),
+		Recorder:   mgr.GetEventRecorder("helmrepository-controller"),
 		HelmClient: helmClient,
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())

@@ -30,7 +30,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -45,7 +45,7 @@ type HelmReleaseReconciler struct {
 	client.Client
 	Log        logr.Logger
 	Scheme     *runtime.Scheme
-	Recorder   record.EventRecorder
+	Recorder   events.EventRecorder
 	HelmClient helm.Client
 }
 
@@ -103,7 +103,7 @@ func (r *HelmReleaseReconciler) reconcileNormal(ctx context.Context, release *he
 		if updateErr := r.updateStatus(ctx, release, condition); updateErr != nil {
 			logger.Error(updateErr, "Failed to update status")
 		}
-		r.Recorder.Event(release, "Warning", utils.ReasonConfigurationError, err.Error())
+		r.Recorder.Eventf(release, nil, "Warning", utils.ReasonConfigurationError, "configure", "%s", err.Error())
 		return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 	}
 
@@ -258,7 +258,7 @@ func (r *HelmReleaseReconciler) installRelease(ctx context.Context, release *hel
 	if err := r.updateStatus(ctx, release, condition); err != nil {
 		logger.Error(err, "Failed to update status")
 	}
-	r.Recorder.Event(release, "Normal", utils.ReasonInstallStarted, "Starting release installation")
+	r.Recorder.Eventf(release, nil, "Normal", utils.ReasonInstallStarted, "install", "Starting release installation")
 
 	// Prepare install request
 	installReq := &helm.InstallRequest{
@@ -284,7 +284,7 @@ func (r *HelmReleaseReconciler) installRelease(ctx context.Context, release *hel
 		if updateErr := r.updateStatus(ctx, release, condition); updateErr != nil {
 			logger.Error(updateErr, "Failed to update status")
 		}
-		r.Recorder.Event(release, "Warning", utils.ReasonInstallFailed, err.Error())
+		r.Recorder.Eventf(release, nil, "Warning", utils.ReasonInstallFailed, "install", "%s", err.Error())
 		return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 	}
 
@@ -295,7 +295,7 @@ func (r *HelmReleaseReconciler) installRelease(ctx context.Context, release *hel
 	}
 
 	logger.Info("Release installed successfully")
-	r.Recorder.Event(release, "Normal", utils.ReasonInstallCompleted, "Release installed successfully")
+	r.Recorder.Eventf(release, nil, "Normal", utils.ReasonInstallCompleted, "install", "Release installed successfully")
 
 	// Calculate next reconciliation time if interval is set
 	nextReconcile := r.calculateNextReconcile(release)
@@ -329,7 +329,7 @@ func (r *HelmReleaseReconciler) upgradeReleaseIfNeeded(ctx context.Context, rele
 	if err := r.updateStatus(ctx, release, condition); err != nil {
 		logger.Error(err, "Failed to update status")
 	}
-	r.Recorder.Event(release, "Normal", utils.ReasonUpgradeStarted, fmt.Sprintf("Starting release upgrade: %s", reason))
+	r.Recorder.Eventf(release, nil, "Normal", utils.ReasonUpgradeStarted, "upgrade", "Starting release upgrade: %s", reason)
 
 	// Prepare upgrade request
 	upgradeReq := &helm.UpgradeRequest{
@@ -365,13 +365,13 @@ func (r *HelmReleaseReconciler) upgradeReleaseIfNeeded(ctx context.Context, rele
 				if updateErr := r.updateStatus(ctx, release, condition); updateErr != nil {
 					logger.Error(updateErr, "Failed to update status")
 				}
-				r.Recorder.Eventf(release, "Warning", utils.ReasonUpgradeFailed,
+				r.Recorder.Eventf(release, nil, "Warning", utils.ReasonUpgradeFailed, "upgrade",
 					"Upgrade failed: %v, Rollback also failed: %v", err, rollbackErr)
 				return ctrl.Result{RequeueAfter: 10 * time.Minute}, nil
 			}
 
 			// Rollback succeeded
-			r.Recorder.Event(release, "Normal", "RollbackSucceeded", "Successfully rolled back after upgrade failure")
+			r.Recorder.Eventf(release, nil, "Normal", "RollbackSucceeded", "rollback", "Successfully rolled back after upgrade failure")
 			return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 		}
 
@@ -380,7 +380,7 @@ func (r *HelmReleaseReconciler) upgradeReleaseIfNeeded(ctx context.Context, rele
 		if updateErr := r.updateStatus(ctx, release, condition); updateErr != nil {
 			logger.Error(updateErr, "Failed to update status")
 		}
-		r.Recorder.Event(release, "Warning", utils.ReasonUpgradeFailed, err.Error())
+		r.Recorder.Eventf(release, nil, "Warning", utils.ReasonUpgradeFailed, "upgrade", "%s", err.Error())
 		return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 	}
 
@@ -391,7 +391,7 @@ func (r *HelmReleaseReconciler) upgradeReleaseIfNeeded(ctx context.Context, rele
 	}
 
 	logger.Info("Release upgraded successfully")
-	r.Recorder.Event(release, "Normal", utils.ReasonUpgradeCompleted, "Release upgraded successfully")
+	r.Recorder.Eventf(release, nil, "Normal", utils.ReasonUpgradeCompleted, "upgrade", "Release upgraded successfully")
 
 	// Calculate next reconciliation time
 	nextReconcile := r.calculateNextReconcile(release)
@@ -805,44 +805,6 @@ func (r *HelmReleaseReconciler) handleAutomaticRollback(ctx context.Context, rel
 	}
 
 	return nil
-}
-
-// Rollback configuration helpers
-func (r *HelmReleaseReconciler) getRollbackTimeout(release *helmoperatorv1alpha1.HelmRelease) time.Duration {
-	if release.Spec.Rollback != nil && release.Spec.Rollback.Timeout != "" {
-		if duration, err := time.ParseDuration(release.Spec.Rollback.Timeout); err == nil {
-			return duration
-		}
-	}
-	return 5 * time.Minute // default
-}
-
-func (r *HelmReleaseReconciler) getRollbackWait(release *helmoperatorv1alpha1.HelmRelease) bool {
-	if release.Spec.Rollback != nil {
-		return release.Spec.Rollback.Wait
-	}
-	return true // default
-}
-
-func (r *HelmReleaseReconciler) getRollbackCleanupOnFail(release *helmoperatorv1alpha1.HelmRelease) bool {
-	if release.Spec.Rollback != nil {
-		return release.Spec.Rollback.CleanupOnFail
-	}
-	return true // default
-}
-
-func (r *HelmReleaseReconciler) getRollbackForce(release *helmoperatorv1alpha1.HelmRelease) bool {
-	if release.Spec.Rollback != nil {
-		return release.Spec.Rollback.Force
-	}
-	return false // default
-}
-
-func (r *HelmReleaseReconciler) getRollbackDisableHooks(release *helmoperatorv1alpha1.HelmRelease) bool {
-	if release.Spec.Rollback != nil {
-		return release.Spec.Rollback.DisableHooks
-	}
-	return false // default
 }
 
 // SetupWithManager sets up the controller with the Manager.

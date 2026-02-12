@@ -1,5 +1,5 @@
 # Build the helm-operator binary
-FROM golang:1.24-alpine3.21 AS builder
+FROM golang:1.25-alpine AS builder
 
 WORKDIR /workspace
 # Copy the Go Modules manifests
@@ -24,7 +24,7 @@ RUN CGO_ENABLED=0 go build -ldflags='-s -w -extldflags "-static"' -a -o helm-ope
 
 # Use distroless as minimal base image to package the helm-operator binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
-FROM alpine:3.21
+FROM alpine
 WORKDIR /ketches
 COPY --from=builder /workspace/helm-operator .
 

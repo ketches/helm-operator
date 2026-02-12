@@ -12,7 +12,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.18.0
+    controller-gen.kubebuilder.io/version: v0.20.0
   name: helmreleases.helm-operator.ketches.cn
 spec:
   group: helm-operator.ketches.cn
@@ -70,6 +70,10 @@ spec:
                   name:
                     description: Name of the chart
                     minLength: 1
+                    type: string
+                  ociRepository:
+                    description: OCIRepository is the OCI registry URL for the chart
+                      (e.g., oci://registry.example.com/charts/mychart)
                     type: string
                   repository:
                     description: Repository contains repository reference
@@ -157,6 +161,43 @@ spec:
                   namespace:
                     description: Namespace where the release will be installed
                     type: string
+                type: object
+              rollback:
+                description: Rollback contains rollback configuration
+                properties:
+                  cleanupOnFail:
+                    default: true
+                    description: CleanupOnFail indicates whether to cleanup failed
+                      rollback
+                    type: boolean
+                  disableHooks:
+                    default: false
+                    description: DisableHooks indicates whether to disable hooks during
+                      rollback
+                    type: boolean
+                  enabled:
+                    default: false
+                    description: Enabled enables automatic rollback on upgrade failure
+                    type: boolean
+                  force:
+                    default: false
+                    description: Force indicates whether to force rollback through
+                      deletion
+                    type: boolean
+                  timeout:
+                    default: 5m
+                    description: Timeout for the rollback operation
+                    pattern: ^([0-9]+(\\.[0-9]+)?(ms|s|m|h))+$
+                    type: string
+                  toRevision:
+                    default: 0
+                    description: ToRevision specifies the revision to rollback to
+                      (0 means previous revision)
+                    type: integer
+                  wait:
+                    default: true
+                    description: Wait indicates whether to wait for rollback to complete
+                    type: boolean
                 type: object
               suspend:
                 default: false
@@ -364,6 +405,10 @@ spec:
                         description: Name of the chart
                         minLength: 1
                         type: string
+                      ociRepository:
+                        description: OCIRepository is the OCI registry URL for the
+                          chart (e.g., oci://registry.example.com/charts/mychart)
+                        type: string
                       repository:
                         description: Repository contains repository reference
                         properties:
@@ -451,6 +496,45 @@ spec:
                       namespace:
                         description: Namespace where the release will be installed
                         type: string
+                    type: object
+                  rollback:
+                    description: Rollback contains rollback configuration
+                    properties:
+                      cleanupOnFail:
+                        default: true
+                        description: CleanupOnFail indicates whether to cleanup failed
+                          rollback
+                        type: boolean
+                      disableHooks:
+                        default: false
+                        description: DisableHooks indicates whether to disable hooks
+                          during rollback
+                        type: boolean
+                      enabled:
+                        default: false
+                        description: Enabled enables automatic rollback on upgrade
+                          failure
+                        type: boolean
+                      force:
+                        default: false
+                        description: Force indicates whether to force rollback through
+                          deletion
+                        type: boolean
+                      timeout:
+                        default: 5m
+                        description: Timeout for the rollback operation
+                        pattern: ^([0-9]+(\\.[0-9]+)?(ms|s|m|h))+$
+                        type: string
+                      toRevision:
+                        default: 0
+                        description: ToRevision specifies the revision to rollback
+                          to (0 means previous revision)
+                        type: integer
+                      wait:
+                        default: true
+                        description: Wait indicates whether to wait for rollback to
+                          complete
+                        type: boolean
                     type: object
                   suspend:
                     default: false
@@ -555,7 +639,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.18.0
+    controller-gen.kubebuilder.io/version: v0.20.0
   name: helmrepositories.helm-operator.ketches.cn
 spec:
   group: helm-operator.ketches.cn
@@ -682,11 +766,27 @@ spec:
                 description: Type specifies the repository type
                 enum:
                 - helm
+                - oci
                 type: string
               url:
                 description: URL is the repository URL
                 minLength: 1
-                pattern: ^(https?)://.*
+                pattern: ^(https?|oci)://.*
+                type: string
+              valuesConfigMapPolicy:
+                default: disabled
+                description: ValuesConfigMapPolicy defines how chart values ConfigMaps
+                  are managed
+                enum:
+                - disabled
+                - on-demand
+                - lazy
+                type: string
+              valuesConfigMapRetention:
+                default: 168h
+                description: ValuesConfigMapRetention defines how long to keep ConfigMaps
+                  (e.g., "168h" for 7 days)
+                pattern: ^([0-9]+(\\.[0-9]+)?(ms|s|m|h))+$
                 type: string
             required:
             - url

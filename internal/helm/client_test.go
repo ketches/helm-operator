@@ -74,11 +74,8 @@ func TestNewClient(t *testing.T) {
 		t.Error("NewClient() returned nil client")
 	}
 
-	// Verify client implements the Client interface
-	_, ok := client.(Client)
-	if !ok {
-		t.Error("NewClient() did not return a Client interface")
-	}
+	// NewClient() returns Client interface; verify we can use it
+	_ = client
 }
 
 func TestChartInfo(t *testing.T) {

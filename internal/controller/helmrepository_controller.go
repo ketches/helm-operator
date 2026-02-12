@@ -29,7 +29,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -45,7 +45,7 @@ type HelmRepositoryReconciler struct {
 	client.Client
 	Log        logr.Logger
 	Scheme     *runtime.Scheme
-	Recorder   record.EventRecorder
+	Recorder   events.EventRecorder
 	HelmClient helm.Client
 }
 
@@ -101,7 +101,7 @@ func (r *HelmRepositoryReconciler) reconcileNormal(ctx context.Context, repo *he
 		if updateErr := r.updateStatusWithRetry(ctx, repo, condition); updateErr != nil {
 			logger.Error(updateErr, "Failed to update status")
 		}
-		r.Recorder.Event(repo, "Warning", utils.ReasonConfigurationError, err.Error())
+		r.Recorder.Eventf(repo, nil, "Warning", utils.ReasonConfigurationError, "configure", "%s", err.Error())
 		return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 	}
 
@@ -137,7 +137,7 @@ func (r *HelmRepositoryReconciler) reconcileSync(ctx context.Context, repo *helm
 	if err := r.updateStatusWithRetry(ctx, repo, syncingCondition); err != nil {
 		logger.Error(err, "Failed to update syncing status")
 	}
-	r.Recorder.Event(repo, "Normal", utils.ReasonSyncStarted, "Starting repository sync")
+	r.Recorder.Eventf(repo, nil, "Normal", utils.ReasonSyncStarted, "sync", "Starting repository sync")
 
 	// Get authentication info
 	auth, err := r.getRepositoryAuth(ctx, repo)
@@ -147,7 +147,7 @@ func (r *HelmRepositoryReconciler) reconcileSync(ctx context.Context, repo *helm
 		if updateErr := r.updateStatusWithRetry(ctx, repo, condition); updateErr != nil {
 			logger.Error(updateErr, "Failed to update status")
 		}
-		r.Recorder.Event(repo, "Warning", utils.ReasonAuthenticationFailed, err.Error())
+		r.Recorder.Eventf(repo, nil, "Warning", utils.ReasonAuthenticationFailed, "authenticate", "%s", err.Error())
 		return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 	}
 
@@ -158,7 +158,7 @@ func (r *HelmRepositoryReconciler) reconcileSync(ctx context.Context, repo *helm
 		if updateErr := r.updateStatusWithRetry(ctx, repo, condition); updateErr != nil {
 			logger.Error(updateErr, "Failed to update status")
 		}
-		r.Recorder.Event(repo, "Warning", utils.ReasonSyncFailed, err.Error())
+		r.Recorder.Eventf(repo, nil, "Warning", utils.ReasonSyncFailed, "sync", "%s", err.Error())
 		return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 	}
 
@@ -172,7 +172,7 @@ func (r *HelmRepositoryReconciler) reconcileSync(ctx context.Context, repo *helm
 			logger.Error(err, "Failed to update status")
 			return ctrl.Result{RequeueAfter: time.Minute}, err
 		}
-		r.Recorder.Event(repo, "Normal", utils.ReasonSyncCompleted, "OCI repository registered successfully")
+		r.Recorder.Eventf(repo, nil, "Normal", utils.ReasonSyncCompleted, "sync", "OCI repository registered successfully")
 
 		// Calculate next sync time
 		nextSync := r.calculateNextSync(repo)
@@ -187,7 +187,7 @@ func (r *HelmRepositoryReconciler) reconcileSync(ctx context.Context, repo *helm
 		if updateErr := r.updateStatusWithRetry(ctx, repo, condition); updateErr != nil {
 			logger.Error(updateErr, "Failed to update status")
 		}
-		r.Recorder.Event(repo, "Warning", utils.ReasonSyncFailed, err.Error())
+		r.Recorder.Eventf(repo, nil, "Warning", utils.ReasonSyncFailed, "sync", "%s", err.Error())
 		return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 	}
 
@@ -198,7 +198,7 @@ func (r *HelmRepositoryReconciler) reconcileSync(ctx context.Context, repo *helm
 		if updateErr := r.updateStatusWithRetry(ctx, repo, condition); updateErr != nil {
 			logger.Error(updateErr, "Failed to update status")
 		}
-		r.Recorder.Event(repo, "Warning", utils.ReasonSyncFailed, err.Error())
+		r.Recorder.Eventf(repo, nil, "Warning", utils.ReasonSyncFailed, "sync", "%s", err.Error())
 		return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 	}
 
@@ -209,7 +209,7 @@ func (r *HelmRepositoryReconciler) reconcileSync(ctx context.Context, repo *helm
 	}
 
 	logger.Info("Repository sync completed successfully", "chartsCount", len(charts))
-	r.Recorder.Event(repo, "Normal", utils.ReasonSyncCompleted, fmt.Sprintf("Repository synced successfully, found %d charts", len(charts)))
+	r.Recorder.Eventf(repo, nil, "Normal", utils.ReasonSyncCompleted, "sync", "Repository synced successfully, found %d charts", len(charts))
 
 	// Calculate next sync time
 	nextSync := r.calculateNextSync(repo)
@@ -629,6 +629,33 @@ func (r *HelmRepositoryReconciler) generateConfigMapName(repoName, chartName, ve
 	return safeName
 }
 
+// cleanupOldConfigMaps removes ConfigMaps that have exceeded the retention period.
+func (r *HelmRepositoryReconciler) cleanupOldConfigMaps(ctx context.Context, repo *helmoperatorv1alpha1.HelmRepository) error {
+	retention := repo.Spec.ValuesConfigMapRetention
+	if retention == "" {
+		retention = "168h"
+	}
+	retentionDuration, err := time.ParseDuration(retention)
+	if err != nil {
+		return fmt.Errorf("invalid retention duration: %w", err)
+	}
+	configMapList := &corev1.ConfigMapList{}
+	if err := r.List(ctx, configMapList, client.InNamespace(repo.Namespace),
+		client.MatchingLabels{"helm-operator.ketches.cn/repository": repo.Name}); err != nil {
+		return fmt.Errorf("failed to list ConfigMaps: %w", err)
+	}
+	now := time.Now()
+	for i := range configMapList.Items {
+		cm := &configMapList.Items[i]
+		if now.Sub(cm.CreationTimestamp.Time) > retentionDuration {
+			if err := r.Delete(ctx, cm); err != nil {
+				r.Log.Error(err, "Failed to delete old ConfigMap", "configMap", cm.Name)
+			}
+		}
+	}
+	return nil
+}
+
 // sanitizeKubernetesName replaces invalid characters in Kubernetes resource names
 func sanitizeKubernetesName(name string) string {
 	// Replace dots, plus signs, and other invalid characters with dashes
@@ -658,60 +685,6 @@ func sanitizeKubernetesName(name string) string {
 	}
 
 	return result
-}
-
-// cleanupOldConfigMaps removes ConfigMaps that have exceeded the retention period
-func (r *HelmRepositoryReconciler) cleanupOldConfigMaps(ctx context.Context, repo *helmoperatorv1alpha1.HelmRepository) error {
-	logger := r.Log.WithValues("helmrepository", repo.Name, "namespace", repo.Namespace)
-
-	// Parse retention period
-	retention := repo.Spec.ValuesConfigMapRetention
-	if retention == "" {
-		retention = "168h" // default 7 days
-	}
-
-	retentionDuration, err := time.ParseDuration(retention)
-	if err != nil {
-		return fmt.Errorf("invalid retention duration: %w", err)
-	}
-
-	// List all ConfigMaps owned by this repository
-	configMapList := &corev1.ConfigMapList{}
-	listOpts := []client.ListOption{
-		client.InNamespace(repo.Namespace),
-		client.MatchingLabels{
-			"helm-operator.ketches.cn/repository": repo.Name,
-		},
-	}
-
-	if err := r.List(ctx, configMapList, listOpts...); err != nil {
-		return fmt.Errorf("failed to list ConfigMaps: %w", err)
-	}
-
-	now := time.Now()
-	cleaned := 0
-
-	for _, cm := range configMapList.Items {
-		// Check if ConfigMap has exceeded retention period
-		age := now.Sub(cm.CreationTimestamp.Time)
-		if age > retentionDuration {
-			logger.V(1).Info("Cleaning up old ConfigMap",
-				"configMap", cm.Name,
-				"age", age.String())
-
-			if err := r.Delete(ctx, &cm); err != nil {
-				logger.Error(err, "Failed to delete ConfigMap", "configMap", cm.Name)
-				continue
-			}
-			cleaned++
-		}
-	}
-
-	if cleaned > 0 {
-		logger.Info("Cleaned up old ConfigMaps", "count", cleaned)
-	}
-
-	return nil
 }
 
 // removeFinalizerWithRetry removes finalizer with retry mechanism to handle conflicts
