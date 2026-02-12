@@ -1,0 +1,271 @@
+---
+# Example 1: Auto-Rollback on Upgrade Failure
+apiVersion: helm-operator.ketches.cn/v1alpha1
+kind: HelmRelease
+metadata:
+  name: webapp-with-rollback
+  namespace: production
+spec:
+  chart:
+    name: webapp
+    version: "2.0.0"
+    repository:
+      name: company-charts
+      namespace: default
+  
+  release:
+    name: webapp
+    namespace: production
+    createNamespace: true
+  
+  # Enable automatic rollback
+  rollback:
+    enabled: true
+    toRevision: 0          # 0 = previous revision
+    timeout: "5m"
+    wait: true
+    cleanupOnFail: true
+    force: false
+    disableHooks: false
+  
+  values: |
+    replicaCount: 3
+    
+    image:
+      tag: "2.0.0"
+    
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+  
+  install:
+    timeout: "10m"
+    wait: true
+    waitForJobs: true
+  
+  upgrade:
+    timeout: "10m"
+    wait: true             # Critical: must wait to detect failures
+    waitForJobs: true
+    cleanupOnFail: true
+
+---
+# Example 2: SemVer Version Constraints
+apiVersion: helm-operator.ketches.cn/v1alpha1
+kind: HelmRelease
+metadata:
+  name: nginx-auto-update
+  namespace: default
+spec:
+  chart:
+    name: nginx
+    # Allow patch and minor updates automatically
+    version: "^1.2.0"      # >= 1.2.0, < 2.0.0
+    repository:
+      name: bitnami
+  
+  release:
+    name: nginx-auto
+    namespace: default
+  
+  # Check for updates every 6 hours
+  interval: "6h"
+  
+  # Enable rollback for safety
+  rollback:
+    enabled: true
+  
+  values: |
+    replicaCount: 2
+  
+  upgrade:
+    timeout: "5m"
+    wait: true
+
+---
+# Example 3: Optimized Repository with Lazy ConfigMap Policy
+apiVersion: helm-operator.ketches.cn/v1alpha1
+kind: HelmRepository
+metadata:
+  name: bitnami-optimized
+  namespace: default
+spec:
+  url: "https://charts.bitnami.com/bitnami"
+  type: "helm"
+  interval: "1h"
+  timeout: "10m"
+  
+  # Use lazy policy - only create ConfigMaps for latest versions
+  valuesConfigMapPolicy: lazy
+  
+  # Cleanup ConfigMaps older than 7 days
+  valuesConfigMapRetention: "168h"
+
+---
+# Example 4: Complete Production Release with All Features
+apiVersion: helm-operator.ketches.cn/v1alpha1
+kind: HelmRelease
+metadata:
+  name: critical-service
+  namespace: production
+  labels:
+    app: critical-service
+    tier: backend
+    criticality: high
+spec:
+  chart:
+    name: myservice
+    # Use caret constraint for automatic updates
+    version: "^3.0.0"
+    repository:
+      name: company-charts
+      namespace: default
+  
+  release:
+    name: critical-service
+    namespace: production
+    createNamespace: true
+  
+  values: |
+    replicaCount: 5
+    
+    image:
+      repository: company.azurecr.io/myservice
+      pullPolicy: IfNotPresent
+    
+    service:
+      type: ClusterIP
+      port: 8080
+    
+    ingress:
+      enabled: true
+      className: nginx
+      hosts:
+        - host: api.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+      tls:
+        - secretName: api-tls
+          hosts:
+            - api.example.com
+    
+    resources:
+      limits:
+        cpu: 2000m
+        memory: 2Gi
+      requests:
+        cpu: 500m
+        memory: 512Mi
+    
+    autoscaling:
+      enabled: true
+      minReplicas: 5
+      maxReplicas: 20
+      targetCPUUtilizationPercentage: 70
+    
+    podDisruptionBudget:
+      enabled: true
+      minAvailable: 3
+    
+    livenessProbe:
+      httpGet:
+        path: /health
+        port: 8080
+      initialDelaySeconds: 30
+      periodSeconds: 10
+    
+    readinessProbe:
+      httpGet:
+        path: /ready
+        port: 8080
+      initialDelaySeconds: 10
+      periodSeconds: 5
+  
+  # Install configuration
+  install:
+    timeout: "15m"
+    wait: true
+    waitForJobs: true
+    skipCRDs: false
+    replace: false
+    disableHooks: false
+  
+  # Upgrade configuration
+  upgrade:
+    timeout: "15m"
+    wait: true
+    waitForJobs: true
+    force: false
+    resetValues: false
+    reuseValues: false
+    recreate: false
+    maxHistory: 10
+    cleanupOnFail: true
+    disableHooks: false
+  
+  # Rollback configuration (CRITICAL for production)
+  rollback:
+    enabled: true          # Always enable for critical services
+    toRevision: 0          # Rollback to previous working version
+    timeout: "10m"
+    wait: true
+    cleanupOnFail: true
+    force: false
+    disableHooks: false
+  
+  # Reconcile every 12 hours to check for updates
+  interval: "12h"
+  
+  # Do not suspend
+  suspend: false
+
+---
+# Example 5: OCI Chart with Auto-Rollback
+apiVersion: helm-operator.ketches.cn/v1alpha1
+kind: HelmRelease
+metadata:
+  name: microservice-oci
+  namespace: apps
+spec:
+  chart:
+    name: microservice
+    version: "~2.1.0"      # Auto-update to 2.1.x
+    ociRepository: "oci://ghcr.io/company/charts/microservice"
+  
+  release:
+    name: microservice
+    namespace: apps
+  
+  rollback:
+    enabled: true
+    timeout: "5m"
+  
+  values: |
+    image:
+      tag: "2.1.5"
+  
+  upgrade:
+    timeout: "10m"
+    wait: true
+  
+  interval: "4h"
+
+---
+# Example 6: Disabled ConfigMap Generation (Recommended)
+apiVersion: helm-operator.ketches.cn/v1alpha1
+kind: HelmRepository
+metadata:
+  name: helm-stable
+  namespace: default
+spec:
+  url: "https://charts.helm.sh/stable"
+  type: "helm"
+  
+  # Disable ConfigMap generation completely (recommended)
+  valuesConfigMapPolicy: disabled
+  
+  interval: "2h"
+  timeout: "10m"
+  suspend: false

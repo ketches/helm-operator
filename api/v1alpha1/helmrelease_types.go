@@ -61,6 +61,10 @@ type HelmReleaseSpec struct {
 	// DependsOn contains references to other releases this release depends on
 	// +optional
 	DependsOn []DependencyReference `json:"dependsOn,omitempty"`
+
+	// Rollback contains rollback configuration
+	// +optional
+	Rollback *RollbackSpec `json:"rollback,omitempty"`
 }
 
 // HelmReleaseStatus defines the observed state of HelmRelease.
@@ -108,6 +112,10 @@ type ChartSpec struct {
 	// RepositoryURL is the direct URL to the repository
 	// +optional
 	RepositoryURL string `json:"repositoryURL,omitempty"`
+
+	// OCIRepository is the OCI registry URL for the chart (e.g., oci://registry.example.com/charts/mychart)
+	// +optional
+	OCIRepository string `json:"ociRepository,omitempty"`
 }
 
 // RepositoryReference contains reference to a HelmRepository
@@ -221,6 +229,40 @@ type UninstallSpec struct {
 	// KeepHistory indicates whether to keep release history
 	// +kubebuilder:default=false
 	KeepHistory bool `json:"keepHistory,omitempty"`
+}
+
+// RollbackSpec contains rollback configuration
+type RollbackSpec struct {
+	// Enabled enables automatic rollback on upgrade failure
+	// +kubebuilder:default=false
+	Enabled bool `json:"enabled,omitempty"`
+
+	// ToRevision specifies the revision to rollback to (0 means previous revision)
+	// +kubebuilder:default=0
+	// +optional
+	ToRevision int `json:"toRevision,omitempty"`
+
+	// Timeout for the rollback operation
+	// +kubebuilder:validation:Pattern=`^([0-9]+(\.[0-9]+)?(ms|s|m|h))+$`
+	// +kubebuilder:default="5m"
+	// +optional
+	Timeout string `json:"timeout,omitempty"`
+
+	// Wait indicates whether to wait for rollback to complete
+	// +kubebuilder:default=true
+	Wait bool `json:"wait,omitempty"`
+
+	// CleanupOnFail indicates whether to cleanup failed rollback
+	// +kubebuilder:default=true
+	CleanupOnFail bool `json:"cleanupOnFail,omitempty"`
+
+	// Force indicates whether to force rollback through deletion
+	// +kubebuilder:default=false
+	Force bool `json:"force,omitempty"`
+
+	// DisableHooks indicates whether to disable hooks during rollback
+	// +kubebuilder:default=false
+	DisableHooks bool `json:"disableHooks,omitempty"`
 }
 
 // DependencyReference contains reference to a dependency

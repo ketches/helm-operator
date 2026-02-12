@@ -62,6 +62,10 @@ spec:
                     description: Name of the chart
                     minLength: 1
                     type: string
+                  ociRepository:
+                    description: OCIRepository is the OCI registry URL for the chart
+                      (e.g., oci://registry.example.com/charts/mychart)
+                    type: string
                   repository:
                     description: Repository contains repository reference
                     properties:
@@ -148,6 +152,43 @@ spec:
                   namespace:
                     description: Namespace where the release will be installed
                     type: string
+                type: object
+              rollback:
+                description: Rollback contains rollback configuration
+                properties:
+                  cleanupOnFail:
+                    default: true
+                    description: CleanupOnFail indicates whether to cleanup failed
+                      rollback
+                    type: boolean
+                  disableHooks:
+                    default: false
+                    description: DisableHooks indicates whether to disable hooks during
+                      rollback
+                    type: boolean
+                  enabled:
+                    default: false
+                    description: Enabled enables automatic rollback on upgrade failure
+                    type: boolean
+                  force:
+                    default: false
+                    description: Force indicates whether to force rollback through
+                      deletion
+                    type: boolean
+                  timeout:
+                    default: 5m
+                    description: Timeout for the rollback operation
+                    pattern: ^([0-9]+(\.[0-9]+)?(ms|s|m|h))+$
+                    type: string
+                  toRevision:
+                    default: 0
+                    description: ToRevision specifies the revision to rollback to
+                      (0 means previous revision)
+                    type: integer
+                  wait:
+                    default: true
+                    description: Wait indicates whether to wait for rollback to complete
+                    type: boolean
                 type: object
               suspend:
                 default: false
@@ -355,6 +396,10 @@ spec:
                         description: Name of the chart
                         minLength: 1
                         type: string
+                      ociRepository:
+                        description: OCIRepository is the OCI registry URL for the
+                          chart (e.g., oci://registry.example.com/charts/mychart)
+                        type: string
                       repository:
                         description: Repository contains repository reference
                         properties:
@@ -442,6 +487,45 @@ spec:
                       namespace:
                         description: Namespace where the release will be installed
                         type: string
+                    type: object
+                  rollback:
+                    description: Rollback contains rollback configuration
+                    properties:
+                      cleanupOnFail:
+                        default: true
+                        description: CleanupOnFail indicates whether to cleanup failed
+                          rollback
+                        type: boolean
+                      disableHooks:
+                        default: false
+                        description: DisableHooks indicates whether to disable hooks
+                          during rollback
+                        type: boolean
+                      enabled:
+                        default: false
+                        description: Enabled enables automatic rollback on upgrade
+                          failure
+                        type: boolean
+                      force:
+                        default: false
+                        description: Force indicates whether to force rollback through
+                          deletion
+                        type: boolean
+                      timeout:
+                        default: 5m
+                        description: Timeout for the rollback operation
+                        pattern: ^([0-9]+(\.[0-9]+)?(ms|s|m|h))+$
+                        type: string
+                      toRevision:
+                        default: 0
+                        description: ToRevision specifies the revision to rollback
+                          to (0 means previous revision)
+                        type: integer
+                      wait:
+                        default: true
+                        description: Wait indicates whether to wait for rollback to
+                          complete
+                        type: boolean
                     type: object
                   suspend:
                     default: false

@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Masterminds/semver/v3"
 	"github.com/go-logr/logr"
 	"gopkg.in/yaml.v3"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -203,8 +204,13 @@ func (r *HelmReleaseReconciler) validateSpec(release *helmoperatorv1alpha1.HelmR
 		return fmt.Errorf("chart name is required")
 	}
 
-	if release.Spec.Chart.Repository == nil && release.Spec.Chart.RepositoryURL == "" {
-		return fmt.Errorf("chart repository or repositoryURL is required")
+	// Check if at least one repository method is specified
+	hasRepo := release.Spec.Chart.Repository != nil
+	hasRepoURL := release.Spec.Chart.RepositoryURL != ""
+	hasOCIRepo := release.Spec.Chart.OCIRepository != ""
+
+	if !hasRepo && !hasRepoURL && !hasOCIRepo {
+		return fmt.Errorf("chart repository, repositoryURL, or ociRepository is required")
 	}
 
 	return nil
@@ -348,6 +354,28 @@ func (r *HelmReleaseReconciler) upgradeReleaseIfNeeded(ctx context.Context, rele
 	releaseInfo, err := r.HelmClient.UpgradeRelease(ctx, upgradeReq)
 	if err != nil {
 		logger.Error(err, "Failed to upgrade release")
+
+		// Handle automatic rollback if enabled
+		if release.Spec.Rollback != nil && release.Spec.Rollback.Enabled {
+			logger.Info("Upgrade failed, triggering automatic rollback")
+			if rollbackErr := r.handleAutomaticRollback(ctx, release, err); rollbackErr != nil {
+				logger.Error(rollbackErr, "Automatic rollback also failed")
+				condition := utils.NewReleaseFailedCondition(utils.ReasonUpgradeFailed,
+					fmt.Sprintf("Upgrade and rollback both failed. Upgrade error: %v, Rollback error: %v", err, rollbackErr))
+				if updateErr := r.updateStatus(ctx, release, condition); updateErr != nil {
+					logger.Error(updateErr, "Failed to update status")
+				}
+				r.Recorder.Eventf(release, "Warning", utils.ReasonUpgradeFailed,
+					"Upgrade failed: %v, Rollback also failed: %v", err, rollbackErr)
+				return ctrl.Result{RequeueAfter: 10 * time.Minute}, nil
+			}
+
+			// Rollback succeeded
+			r.Recorder.Event(release, "Normal", "RollbackSucceeded", "Successfully rolled back after upgrade failure")
+			return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
+		}
+
+		// No automatic rollback configured
 		condition := utils.NewReleaseFailedCondition(utils.ReasonUpgradeFailed, fmt.Sprintf("Failed to upgrade: %v", err))
 		if updateErr := r.updateStatus(ctx, release, condition); updateErr != nil {
 			logger.Error(updateErr, "Failed to update status")
@@ -393,12 +421,20 @@ func (r *HelmReleaseReconciler) getCreateNamespace(release *helmoperatorv1alpha1
 }
 
 func (r *HelmReleaseReconciler) getChartReference(release *helmoperatorv1alpha1.HelmRelease) string {
+	// Priority 1: OCI repository reference
+	if release.Spec.Chart.OCIRepository != "" {
+		// For OCI registries, return the full OCI URL
+		// Format: oci://registry.example.com/charts/mychart
+		return release.Spec.Chart.OCIRepository
+	}
+
+	// Priority 2: Direct repository URL
 	if release.Spec.Chart.RepositoryURL != "" {
 		// For direct repository URL, return the chart name and let Helm handle the URL
 		return release.Spec.Chart.Name
 	}
 
-	// For repository reference, use the format repo_name/chart_name
+	// Priority 3: Repository reference (traditional Helm repo)
 	if release.Spec.Chart.Repository != nil {
 		return fmt.Sprintf("%s/%s", release.Spec.Chart.Repository.Name, release.Spec.Chart.Name)
 	}
@@ -656,8 +692,39 @@ func (r *HelmReleaseReconciler) isVersionMatch(chartInfo, requestedVersion strin
 	if len(parts) < 2 {
 		return false
 	}
-	currentVersion := parts[len(parts)-1]
-	return currentVersion == requestedVersion
+	currentVersionStr := parts[len(parts)-1]
+
+	// If no specific version requested, consider it a match
+	if requestedVersion == "" || requestedVersion == "latest" {
+		return true
+	}
+
+	// Try to parse as semantic versions
+	currentVersion, err := semver.NewVersion(currentVersionStr)
+	if err != nil {
+		// Fallback to string comparison if not a valid semver
+		return currentVersionStr == requestedVersion
+	}
+
+	// Check if it's a constraint or exact version
+	if strings.ContainsAny(requestedVersion, "^~><*") {
+		constraint, err := semver.NewConstraint(requestedVersion)
+		if err != nil {
+			// If constraint is invalid, try exact match
+			return currentVersionStr == requestedVersion
+		}
+		return constraint.Check(currentVersion)
+	}
+
+	// Try to parse requested version as semver
+	requestedVer, err := semver.NewVersion(requestedVersion)
+	if err != nil {
+		// Fallback to string comparison
+		return currentVersionStr == requestedVersion
+	}
+
+	// Exact semantic version match
+	return currentVersion.Equal(requestedVer)
 }
 
 func (r *HelmReleaseReconciler) areValuesEqual(newValues string, existingValues string) bool {
@@ -707,6 +774,75 @@ func isReleaseNotFoundError(err error) bool {
 	// Check if the error indicates that the release was not found
 	// This is a simplified check - in practice, you'd check for specific Helm error types
 	return err != nil && (strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "release: not found"))
+}
+
+// handleAutomaticRollback performs automatic rollback after a failed upgrade
+func (r *HelmReleaseReconciler) handleAutomaticRollback(ctx context.Context, release *helmoperatorv1alpha1.HelmRelease, upgradeErr error) error {
+	logger := r.Log.WithValues("helmrelease", release.Name, "namespace", release.Namespace)
+
+	logger.Info("Performing automatic rollback", "reason", upgradeErr.Error())
+
+	releaseName := r.getReleaseName(release)
+	releaseNamespace := r.getReleaseNamespace(release)
+
+	// Get rollback revision (0 means previous revision)
+	revision := 0
+	if release.Spec.Rollback != nil {
+		revision = release.Spec.Rollback.ToRevision
+	}
+
+	// Perform rollback using simple method
+	releaseInfo, err := r.HelmClient.RollbackRelease(ctx, releaseName, releaseNamespace, revision)
+	if err != nil {
+		return fmt.Errorf("rollback failed: %w", err)
+	}
+
+	// Update status with rollback information
+	condition := utils.NewReleaseReadyCondition(metav1.ConditionTrue, "RolledBack",
+		fmt.Sprintf("Rolled back to revision %d after upgrade failure", releaseInfo.Revision))
+	if err := r.updateStatus(ctx, release, condition); err != nil {
+		logger.Error(err, "Failed to update status after rollback")
+	}
+
+	return nil
+}
+
+// Rollback configuration helpers
+func (r *HelmReleaseReconciler) getRollbackTimeout(release *helmoperatorv1alpha1.HelmRelease) time.Duration {
+	if release.Spec.Rollback != nil && release.Spec.Rollback.Timeout != "" {
+		if duration, err := time.ParseDuration(release.Spec.Rollback.Timeout); err == nil {
+			return duration
+		}
+	}
+	return 5 * time.Minute // default
+}
+
+func (r *HelmReleaseReconciler) getRollbackWait(release *helmoperatorv1alpha1.HelmRelease) bool {
+	if release.Spec.Rollback != nil {
+		return release.Spec.Rollback.Wait
+	}
+	return true // default
+}
+
+func (r *HelmReleaseReconciler) getRollbackCleanupOnFail(release *helmoperatorv1alpha1.HelmRelease) bool {
+	if release.Spec.Rollback != nil {
+		return release.Spec.Rollback.CleanupOnFail
+	}
+	return true // default
+}
+
+func (r *HelmReleaseReconciler) getRollbackForce(release *helmoperatorv1alpha1.HelmRelease) bool {
+	if release.Spec.Rollback != nil {
+		return release.Spec.Rollback.Force
+	}
+	return false // default
+}
+
+func (r *HelmReleaseReconciler) getRollbackDisableHooks(release *helmoperatorv1alpha1.HelmRelease) bool {
+	if release.Spec.Rollback != nil {
+		return release.Spec.Rollback.DisableHooks
+	}
+	return false // default
 }
 
 // SetupWithManager sets up the controller with the Manager.

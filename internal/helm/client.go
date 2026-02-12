@@ -25,6 +25,7 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/time/rate"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/repo"
@@ -56,12 +57,14 @@ type ReleaseManager interface {
 	GetRelease(ctx context.Context, name, namespace string) (*ReleaseInfo, error)
 	ListReleases(ctx context.Context, namespace string) ([]*ReleaseInfo, error)
 	GetReleaseHistory(ctx context.Context, name, namespace string) ([]*ReleaseInfo, error)
+	RollbackRelease(ctx context.Context, name, namespace string, revision int) (*ReleaseInfo, error)
 }
 
 // helmClient implements the Client interface
 type helmClient struct {
 	settings  *cli.EnvSettings
 	repoCache *repositoryCache
+	limiter   *rate.Limiter // Rate limiter for API calls
 }
 
 // repositoryCache manages cached repository data
@@ -82,6 +85,7 @@ func NewClient() (Client, error) {
 	return &helmClient{
 		settings:  settings,
 		repoCache: &repositoryCache{},
+		limiter:   rate.NewLimiter(rate.Limit(10), 20), // 10 req/s, burst 20
 	}, nil
 }
 
@@ -93,7 +97,11 @@ func ensureRepoFile(settings *cli.EnvSettings) error {
 	// Ensure parent directory exists
 	if err := os.MkdirAll(filepath.Dir(repoFile), os.ModePerm); err != nil {
 		return fmt.Errorf("failed to create repository config directory: %w", err)
-	} else {
+	}
+
+	// Check if repository file exists
+	if _, err := os.Stat(repoFile); os.IsNotExist(err) {
+		// Create empty repository file if it doesn't exist
 		if err := os.WriteFile(repoFile, []byte{}, 0644); err != nil {
 			return fmt.Errorf("failed to create repository config file: %w", err)
 		}

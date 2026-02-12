@@ -335,7 +335,7 @@ func (c *helmClient) GetReleaseManifest(ctx context.Context, name, namespace str
 	return rel.Manifest, nil
 }
 
-// RollbackRelease rolls back a release to a previous revision
+// RollbackRelease rolls back a release to a previous revision (simple version)
 func (c *helmClient) RollbackRelease(ctx context.Context, name, namespace string, revision int) (*ReleaseInfo, error) {
 	// Create action configuration for the target namespace
 	config, err := c.getActionConfig(namespace)

@@ -18,7 +18,7 @@ When a HelmRepository is synced, the operator:
 
 ConfigMaps are named using the pattern:
 
-```
+```txt
 helm-values-{repository}-{chart}-{version}
 ```
 

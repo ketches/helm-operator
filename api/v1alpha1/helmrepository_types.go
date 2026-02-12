@@ -27,12 +27,12 @@ import (
 type HelmRepositorySpec struct {
 	// URL is the repository URL
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Pattern=`^(https?)://.*`
+	// +kubebuilder:validation:Pattern=`^(https?|oci)://.*`
 	// +kubebuilder:validation:MinLength=1
 	URL string `json:"url"`
 
 	// Type specifies the repository type
-	// +kubebuilder:validation:Enum=helm
+	// +kubebuilder:validation:Enum=helm;oci
 	// +kubebuilder:default=helm
 	Type string `json:"type,omitempty"`
 
@@ -53,6 +53,18 @@ type HelmRepositorySpec struct {
 	// Suspend tells the controller to suspend subsequent sync operations
 	// +kubebuilder:default=false
 	Suspend bool `json:"suspend,omitempty"`
+
+	// ValuesConfigMapPolicy defines how chart values ConfigMaps are managed
+	// +kubebuilder:validation:Enum=disabled;on-demand;lazy
+	// +kubebuilder:default=disabled
+	// +optional
+	ValuesConfigMapPolicy string `json:"valuesConfigMapPolicy,omitempty"`
+
+	// ValuesConfigMapRetention defines how long to keep ConfigMaps (e.g., "168h" for 7 days)
+	// +kubebuilder:validation:Pattern=`^([0-9]+(\.[0-9]+)?(ms|s|m|h))+$`
+	// +kubebuilder:default="168h"
+	// +optional
+	ValuesConfigMapRetention string `json:"valuesConfigMapRetention,omitempty"`
 }
 
 // HelmRepositoryStatus defines the observed state of HelmRepository.

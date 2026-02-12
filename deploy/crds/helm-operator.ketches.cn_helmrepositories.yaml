@@ -130,11 +130,27 @@ spec:
                 description: Type specifies the repository type
                 enum:
                 - helm
+                - oci
                 type: string
               url:
                 description: URL is the repository URL
                 minLength: 1
-                pattern: ^(https?)://.*
+                pattern: ^(https?|oci)://.*
+                type: string
+              valuesConfigMapPolicy:
+                default: disabled
+                description: ValuesConfigMapPolicy defines how chart values ConfigMaps
+                  are managed
+                enum:
+                - disabled
+                - on-demand
+                - lazy
+                type: string
+              valuesConfigMapRetention:
+                default: 168h
+                description: ValuesConfigMapRetention defines how long to keep ConfigMaps
+                  (e.g., "168h" for 7 days)
+                pattern: ^([0-9]+(\.[0-9]+)?(ms|s|m|h))+$
                 type: string
             required:
             - url

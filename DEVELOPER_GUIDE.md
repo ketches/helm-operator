@@ -1,8 +1,10 @@
 # Helm Operator Developer Guide
 
+> **Version**: v0.3.0
+
 ## Overview
 
-Helm Operator is a Kubernetes controller for managing the lifecycle of Helm releases. It provides declarative Helm release management capabilities through Kubernetes Custom Resource Definitions (CRDs).
+Helm Operator is a Kubernetes controller for managing the lifecycle of Helm releases. It provides declarative Helm release management capabilities through Kubernetes Custom Resource Definitions (CRDs) with intelligent automation and advanced features.
 
 ## Architecture Overview
 
@@ -73,7 +75,80 @@ make test
 
 HelmRepository defines the configuration information for Helm repositories and supports multiple types of repositories:
 
-#### 1. Public HTTPS Repository
+#### 1. OCI Registry (Recommended)
+
+OCI (Open Container Initiative) registries are the recommended way to distribute Helm charts due to better performance, security, and standardization.
+
+**Public OCI Registry:**
+
+```yaml
+apiVersion: helm-operator.ketches.cn/v1alpha1
+kind: HelmRepository
+metadata:
+  name: ghcr-charts
+  namespace: default
+spec:
+  url: "oci://ghcr.io/myorg/charts"
+  type: "oci"
+  interval: "1h"
+  timeout: "10m"
+  # Optimize resource usage
+  valuesConfigMapPolicy: disabled  # Recommended
+```
+
+**Private OCI Registry with Authentication:**
+
+```yaml
+# Create Docker registry secret
+apiVersion: v1
+kind: Secret
+metadata:
+  name: oci-registry-auth
+  namespace: default
+type: kubernetes.io/dockerconfigjson
+data:
+  .dockerconfigjson: <base64-encoded-docker-config>
+---
+apiVersion: helm-operator.ketches.cn/v1alpha1
+kind: HelmRepository
+metadata:
+  name: acr-private
+  namespace: default
+spec:
+  url: "oci://myregistry.azurecr.io/helm"
+  type: "oci"
+  auth:
+    secretRef:
+      name: oci-registry-auth
+  interval: "1h"
+  valuesConfigMapPolicy: disabled
+```
+
+**OCI Registry Examples:**
+
+```yaml
+# GitHub Container Registry (GHCR)
+spec:
+  url: "oci://ghcr.io/myorg/charts"
+
+# Azure Container Registry (ACR)
+spec:
+  url: "oci://myregistry.azurecr.io/helm"
+
+# Google Artifact Registry (GAR)
+spec:
+  url: "oci://us-docker.pkg.dev/project-id/helm-charts"
+
+# Amazon Elastic Container Registry (ECR)
+spec:
+  url: "oci://123456789012.dkr.ecr.us-east-1.amazonaws.com/helm-charts"
+
+# Harbor
+spec:
+  url: "oci://harbor.example.com/library"
+```
+
+#### 2. Public HTTPS Repository
 
 ```yaml
 apiVersion: helm-operator.ketches.cn/v1alpha1
@@ -87,9 +162,10 @@ spec:
   interval: "30m"
   timeout: "5m"
   suspend: false
+  valuesConfigMapPolicy: disabled  # Recommended
 ```
 
-#### 2. Private HTTPS Repository (with authentication)
+#### 3. Private HTTPS Repository (with authentication)
 
 ```yaml
 apiVersion: helm-operator.ketches.cn/v1alpha1

@@ -1,6 +1,6 @@
 # Image URL to use all building/pushing image targets
 IMG ?= ketches/helm-operator
-VERSION ?= 0.2.3
+VERSION ?= 0.3.0
 ALIYUN_REGISTRY ?= registry.cn-hangzhou.aliyuncs.com
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)

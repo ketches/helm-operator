@@ -130,7 +130,7 @@ func (r *HelmRepositoryReconciler) reconcileNormal(ctx context.Context, repo *he
 func (r *HelmRepositoryReconciler) reconcileSync(ctx context.Context, repo *helmoperatorv1alpha1.HelmRepository) (ctrl.Result, error) {
 	logger := r.Log.WithValues("helmrepository", repo.Name, "namespace", repo.Namespace)
 
-	logger.Info("Starting repository sync", "url", repo.Spec.URL)
+	logger.Info("Starting repository sync", "url", repo.Spec.URL, "type", repo.Spec.Type)
 
 	// Set syncing status
 	syncingCondition := utils.NewSyncingCondition(metav1.ConditionTrue, utils.ReasonSyncStarted, "Starting repository sync")
@@ -151,10 +151,7 @@ func (r *HelmRepositoryReconciler) reconcileSync(ctx context.Context, repo *helm
 		return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 	}
 
-	// Create repository entry - we'll pass auth info directly to the helm client
-	// The helm client will handle creating the proper repo.Entry
-
-	// Add/update repository - we need to create a proper repo entry
+	// Add/update repository
 	if err := r.addRepositoryToHelm(ctx, repo, auth); err != nil {
 		logger.Error(err, "Failed to add repository")
 		condition := utils.NewFailedCondition(utils.ReasonSyncFailed, fmt.Sprintf("Failed to add repository: %v", err))
@@ -165,7 +162,24 @@ func (r *HelmRepositoryReconciler) reconcileSync(ctx context.Context, repo *helm
 		return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 	}
 
-	// Get charts information
+	// Handle OCI repositories differently
+	if r.isOCIRepository(repo) {
+		logger.Info("OCI repository registered successfully")
+		// For OCI repos, we can't fetch a chart list ahead of time
+		// Just mark as synced successfully
+		condition := utils.NewReadyCondition(metav1.ConditionTrue, utils.ReasonSyncCompleted, "OCI repository registered successfully")
+		if err := r.updateStatusWithRetry(ctx, repo, condition); err != nil {
+			logger.Error(err, "Failed to update status")
+			return ctrl.Result{RequeueAfter: time.Minute}, err
+		}
+		r.Recorder.Event(repo, "Normal", utils.ReasonSyncCompleted, "OCI repository registered successfully")
+
+		// Calculate next sync time
+		nextSync := r.calculateNextSync(repo)
+		return ctrl.Result{RequeueAfter: nextSync}, nil
+	}
+
+	// Get charts information for traditional Helm repositories
 	charts, err := r.HelmClient.GetChartsFromRepository(ctx, repo.Name)
 	if err != nil {
 		logger.Error(err, "Failed to get charts from repository")
@@ -200,6 +214,11 @@ func (r *HelmRepositoryReconciler) reconcileSync(ctx context.Context, repo *helm
 	// Calculate next sync time
 	nextSync := r.calculateNextSync(repo)
 	return ctrl.Result{RequeueAfter: nextSync}, nil
+}
+
+// isOCIRepository checks if the repository is an OCI registry
+func (r *HelmRepositoryReconciler) isOCIRepository(repo *helmoperatorv1alpha1.HelmRepository) bool {
+	return repo.Spec.Type == "oci" || (len(repo.Spec.URL) > 6 && repo.Spec.URL[:6] == "oci://")
 }
 
 // reconcileDelete handles the deletion logic
@@ -473,25 +492,51 @@ func (r *HelmRepositoryReconciler) addRepositoryToHelm(ctx context.Context, repo
 func (r *HelmRepositoryReconciler) createChartValuesConfigMaps(ctx context.Context, repo *helmoperatorv1alpha1.HelmRepository, charts []helm.ChartInfo) error {
 	logger := r.Log.WithValues("helmrepository", repo.Name, "namespace", repo.Namespace)
 
-	// Get all chart versions for each chart
-	for _, chart := range charts {
-		logger.V(1).Info("Processing chart", "chartName", chart.Name)
+	// Check ConfigMap policy
+	policy := repo.Spec.ValuesConfigMapPolicy
+	if policy == "disabled" || policy == "" {
+		logger.V(1).Info("ConfigMap generation is disabled")
+		return nil
+	}
 
-		// Get all versions of this chart
+	// For on-demand policy, skip generation during sync
+	// ConfigMaps will be created when HelmRelease references them
+	if policy == "on-demand" {
+		logger.V(1).Info("Using on-demand ConfigMap generation policy, skipping sync-time generation")
+		return nil
+	}
+
+	// For lazy policy, only generate for latest versions
+	logger.V(1).Info("Creating ConfigMaps for chart values", "policy", policy)
+
+	for _, chart := range charts {
+		// For lazy policy, only create ConfigMap for latest version
+		if policy == "lazy" {
+			if err := r.createChartVersionConfigMap(ctx, repo, chart.Name, chart.Version); err != nil {
+				logger.Error(err, "Failed to create ConfigMap for latest chart version",
+					"chartName", chart.Name, "version", chart.Version)
+			}
+			continue
+		}
+
+		// Full generation for other policies (shouldn't reach here with current policies)
 		chartVersions, err := r.HelmClient.GetChartVersions(ctx, repo.Name, chart.Name)
 		if err != nil {
 			logger.Error(err, "Failed to get chart versions", "chartName", chart.Name)
-			continue // Continue with other charts
+			continue
 		}
 
-		// Create ConfigMap for each version
 		for _, version := range chartVersions {
 			if err := r.createChartVersionConfigMap(ctx, repo, chart.Name, version.Version); err != nil {
 				logger.Error(err, "Failed to create ConfigMap for chart version",
 					"chartName", chart.Name, "version", version.Version)
-				// Continue with other versions
 			}
 		}
+	}
+
+	// Cleanup old ConfigMaps based on retention policy
+	if err := r.cleanupOldConfigMaps(ctx, repo); err != nil {
+		logger.Error(err, "Failed to cleanup old ConfigMaps")
 	}
 
 	return nil
@@ -613,6 +658,60 @@ func sanitizeKubernetesName(name string) string {
 	}
 
 	return result
+}
+
+// cleanupOldConfigMaps removes ConfigMaps that have exceeded the retention period
+func (r *HelmRepositoryReconciler) cleanupOldConfigMaps(ctx context.Context, repo *helmoperatorv1alpha1.HelmRepository) error {
+	logger := r.Log.WithValues("helmrepository", repo.Name, "namespace", repo.Namespace)
+
+	// Parse retention period
+	retention := repo.Spec.ValuesConfigMapRetention
+	if retention == "" {
+		retention = "168h" // default 7 days
+	}
+
+	retentionDuration, err := time.ParseDuration(retention)
+	if err != nil {
+		return fmt.Errorf("invalid retention duration: %w", err)
+	}
+
+	// List all ConfigMaps owned by this repository
+	configMapList := &corev1.ConfigMapList{}
+	listOpts := []client.ListOption{
+		client.InNamespace(repo.Namespace),
+		client.MatchingLabels{
+			"helm-operator.ketches.cn/repository": repo.Name,
+		},
+	}
+
+	if err := r.List(ctx, configMapList, listOpts...); err != nil {
+		return fmt.Errorf("failed to list ConfigMaps: %w", err)
+	}
+
+	now := time.Now()
+	cleaned := 0
+
+	for _, cm := range configMapList.Items {
+		// Check if ConfigMap has exceeded retention period
+		age := now.Sub(cm.CreationTimestamp.Time)
+		if age > retentionDuration {
+			logger.V(1).Info("Cleaning up old ConfigMap",
+				"configMap", cm.Name,
+				"age", age.String())
+
+			if err := r.Delete(ctx, &cm); err != nil {
+				logger.Error(err, "Failed to delete ConfigMap", "configMap", cm.Name)
+				continue
+			}
+			cleaned++
+		}
+	}
+
+	if cleaned > 0 {
+		logger.Info("Cleaned up old ConfigMaps", "count", cleaned)
+	}
+
+	return nil
 }
 
 // removeFinalizerWithRetry removes finalizer with retry mechanism to handle conflicts

@@ -1,0 +1,99 @@
+---
+# Example: Public OCI Helm Repository
+apiVersion: helm-operator.ketches.cn/v1alpha1
+kind: HelmRepository
+metadata:
+  name: ghcr-public
+  namespace: default
+spec:
+  url: "oci://ghcr.io/helm/charts"
+  type: "oci"
+  interval: "1h"
+  timeout: "10m"
+  suspend: false
+
+---
+# Example: Private OCI Helm Repository with Authentication
+apiVersion: v1
+kind: Secret
+metadata:
+  name: oci-registry-credentials
+  namespace: default
+type: Opaque
+stringData:
+  username: "your-username"
+  password: "your-token-or-password"
+
+---
+apiVersion: helm-operator.ketches.cn/v1alpha1
+kind: HelmRepository
+metadata:
+  name: private-oci-registry
+  namespace: default
+spec:
+  url: "oci://registry.example.com/helm-charts"
+  type: "oci"
+  interval: "2h"
+  timeout: "15m"
+  auth:
+    basic:
+      secretRef:
+        name: oci-registry-credentials
+        namespace: default
+  suspend: false
+
+---
+# Example: HelmRelease using OCI Chart
+apiVersion: helm-operator.ketches.cn/v1alpha1
+kind: HelmRelease
+metadata:
+  name: nginx-from-oci
+  namespace: default
+spec:
+  chart:
+    name: nginx
+    version: "1.0.0"
+    # Direct OCI repository reference
+    ociRepository: "oci://ghcr.io/helm/charts/nginx"
+  release:
+    name: nginx-oci-release
+    namespace: default
+    createNamespace: true
+  values: |
+    replicaCount: 2
+    
+    image:
+      pullPolicy: IfNotPresent
+    
+    service:
+      type: ClusterIP
+      port: 80
+    
+    resources:
+      limits:
+        cpu: 200m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    
+    autoscaling:
+      enabled: false
+  
+  install:
+    timeout: "10m"
+    wait: true
+    waitForJobs: true
+    skipCRDs: false
+  
+  upgrade:
+    timeout: "10m"
+    wait: true
+    cleanupOnFail: true
+    force: false
+  
+  # Optional: Set reconciliation interval
+  interval: "5m"
+  
+  # Optional: Suspend reconciliation
+  suspend: false

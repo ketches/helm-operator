@@ -31,6 +31,13 @@ import (
 
 // AddRepository adds a new repository to the Helm configuration
 func (c *helmClient) AddRepository(ctx context.Context, entry *repo.Entry) error {
+	// Check if this is an OCI repository
+	if isOCIRegistry(entry.URL) {
+		// For OCI registries, we just validate the URL and cache the entry
+		// OCI registries don't use index files like traditional Helm repos
+		return c.addOCIRepository(ctx, entry)
+	}
+
 	// Load existing repositories
 	f, err := c.loadRepoFile()
 	if err != nil {
@@ -62,8 +69,48 @@ func (c *helmClient) AddRepository(ctx context.Context, entry *repo.Entry) error
 	return c.UpdateRepository(ctx, entry.Name)
 }
 
+// isOCIRegistry checks if the URL is an OCI registry
+func isOCIRegistry(url string) bool {
+	return len(url) > 6 && url[:6] == "oci://"
+}
+
+// addOCIRepository handles OCI registry addition
+func (c *helmClient) addOCIRepository(ctx context.Context, entry *repo.Entry) error {
+	// Load existing repositories
+	f, err := c.loadRepoFile()
+	if err != nil {
+		return fmt.Errorf("failed to load repository file: %w", err)
+	}
+
+	// For OCI repos, we just store the metadata without fetching an index
+	if f.Has(entry.Name) {
+		existing := f.Get(entry.Name)
+		if existing.URL != entry.URL {
+			return fmt.Errorf("repository %s already exists with different URL", entry.Name)
+		}
+		f.Update(entry)
+	} else {
+		f.Add(entry)
+	}
+
+	// Write the repository file
+	if err := f.WriteFile(c.settings.RepositoryConfig, 0644); err != nil {
+		return fmt.Errorf("failed to write repository file: %w", err)
+	}
+
+	// Update cache
+	c.updateRepositoryCache(f.Repositories)
+
+	return nil
+}
+
 // UpdateRepository updates the index for a specific repository
 func (c *helmClient) UpdateRepository(ctx context.Context, name string) error {
+	// Apply rate limiting
+	if err := c.limiter.Wait(ctx); err != nil {
+		return fmt.Errorf("rate limit: %w", err)
+	}
+
 	f, err := c.loadRepoFile()
 	if err != nil {
 		return fmt.Errorf("failed to load repository file: %w", err)

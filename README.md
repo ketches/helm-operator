@@ -2,49 +2,59 @@
 
 [中文文档](README_zh.md) | English
 
-A Kubernetes Operator for managing Helm repositories and releases through Custom Resource Definitions (CRDs).
+> **Version**: v0.3.0
+
+A production-grade Kubernetes Operator for managing Helm repositories and releases through Custom Resource Definitions (CRDs), with intelligent automation and advanced features.
 
 ## Overview
 
 Helm Operator provides a declarative way to manage Helm repositories and releases in Kubernetes clusters. It extends Kubernetes with custom resources that allow you to:
 
-- **Manage Helm Repositories**: Automatically sync Helm repositories and track available charts
-- **Manage Helm Releases**: Declaratively install, upgrade, and manage Helm releases
-- **Authentication Support**: Support for private repositories with Basic Auth and TLS
-- **Status Tracking**: Real-time status updates and chart information
-- **Event Recording**: Comprehensive event logging for operations
+- **🏪 Manage Helm Repositories**: Automatic sync with intelligent error handling and retry
+- **🚀 Manage Helm Releases**: Declarative install, upgrade with automatic rollback
+- **📦 OCI Registry Support**: Full support for OCI-based Helm charts (Recommended)
+- **🔄 Automatic Rollback**: Auto-recover from failed upgrades
+- **📊 Semantic Versioning**: SemVer constraints for flexible version management
+- **🔐 Authentication Support**: Private repositories with Basic Auth and TLS
+- **📈 Full Observability**: Prometheus metrics and comprehensive logging
 
 ## Features
 
 ### 🏪 HelmRepository Management
 
+- **OCI Registry Support** (Recommended for production)
 - Automatic repository synchronization
 - Chart discovery and version tracking
-- Authentication support (Basic Auth, TLS)
+- Authentication support (Basic Auth, TLS, OCI auth)
 - Status reporting with chart information
-- Configurable sync intervals
+- Configurable sync intervals with smart retry
+- ConfigMap policy (disabled/on-demand/lazy)
 
 ### 🚀 HelmRelease Management
 
 - Declarative release management
 - YAML-based values configuration
-- Automatic upgrades on configuration changes
+- **Automatic rollback on upgrade failure** 🆕
+- **SemVer version constraints** 🆕
 - Dependency management between releases
 - Rollback and history tracking
+- Health check integration
 
 ### 🔐 Security & Authentication
 
 - Private repository support
+- OCI registry authentication
 - TLS certificate management
 - Kubernetes Secret integration
 - RBAC permissions
 
 ### 📊 Observability
 
+- **Prometheus metrics** (15+ metrics) 🆕
 - Real-time status conditions
 - Event recording
-- Metrics and monitoring ready
-- Comprehensive logging
+- Comprehensive logging with structured output
+- Grafana dashboard ready
 
 ## Architecture
 
@@ -91,65 +101,167 @@ Helm Operator provides a declarative way to manage Helm repositories and release
 
 ### Installation
 
-#### Install with manifests
-
-1. **Install CRDs:**
+#### Install with Helm (Recommended)
 
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/ketches/helm-operator/master/deploy/crds/helm-operator.ketches.cn_helmrepositories.yaml
-kubectl apply -f https://raw.githubusercontent.com/ketches/helm-operator/master/deploy/crds/helm-operator.ketches.cn_helmreleases.yaml
+# Add Helm repository
+helm repo add helm-operator https://ketches.github.io/helm-operator
+helm repo update
+
+# Install the operator
+helm install helm-operator helm-operator/helm-operator \
+  -n ketches --create-namespace
+
+# Verify installation
+kubectl get pods -n ketches
 ```
 
-2. **Deploy the Operator:**
+#### Install with manifests
 
 ```bash
+# Install CRDs
+kubectl apply -f https://raw.githubusercontent.com/ketches/helm-operator/master/deploy/crds/
+
+# Deploy the Operator
 kubectl create namespace ketches
 kubectl apply -f https://raw.githubusercontent.com/ketches/helm-operator/master/deploy/manifests.yaml
 ```
 
-#### Install with Helm
-
-1. **Add Helm repository:**
-
-```bash
-helm repo add helm-operator https://ketches.github.io/helm-operator
-helm repo update
-```
-
-2. **Install the operator:**
-
-```bash
-helm install helm-operator helm-operator/helm-operator -n ketches --create-namespace
-```
-
-3. **Verify Installation:**
-
-```bash
-kubectl get pods -n ketches
-```
-
 ### Basic Usage
 
-#### 1. Create a Helm Repository
+#### Method 1: Using OCI Registry (Recommended)
 
-```bash
-kubectl apply -f https://raw.githubusercontent.com/ketches/helm-operator/master/samples/helm_repository.yaml
+OCI registries offer better performance, security, and are the future of Helm chart distribution.
+
+Step 1: **Create an OCI-based HelmRepository**
+
+```yaml
+apiVersion: helm-operator.ketches.cn/v1alpha1
+kind: HelmRepository
+metadata:
+  name: ghcr-charts
+  namespace: default
+spec:
+  url: "oci://ghcr.io/myorg/charts"
+  type: "oci"
+  interval: "1h"
+  timeout: "10m"
+  # Optimize ConfigMap usage
+  valuesConfigMapPolicy: disabled  # Recommended
 ```
 
-#### 2. Create a Helm Release
+Step 2: **Deploy a Release from OCI**
 
-```bash
-kubectl apply -f https://raw.githubusercontent.com/ketches/helm-operator/master/samples/helm_release.yaml
+```yaml
+apiVersion: helm-operator.ketches.cn/v1alpha1
+kind: HelmRelease
+metadata:
+  name: my-app
+  namespace: default
+spec:
+  chart:
+    name: myapp
+    version: "^1.0.0"  # SemVer constraint
+    ociRepository: "oci://ghcr.io/myorg/charts/myapp"
+  
+  release:
+    name: my-app
+    namespace: production
+    createNamespace: true
+  
+  values: |
+    replicaCount: 3
+    image:
+      tag: "v1.0.0"
+  
+  # Enable automatic rollback for safety
+  rollback:
+    enabled: true
+    timeout: "5m"
+  
+  install:
+    timeout: "10m"
+    wait: true
+  
+  upgrade:
+    timeout: "10m"
+    wait: true
 ```
 
-#### 3. Check Status
+**Apply the resources:**
 
 ```bash
-# Check repository status
-kubectl get helmrepository helm-operator-charts
+kubectl apply -f helmrepository-oci.yaml
+kubectl apply -f helmrelease-oci.yaml
+
+# Check status
+kubectl get helmrepository ghcr-charts
+kubectl get helmrelease my-app
+```
+
+#### Method 2: Using Traditional HTTP Repository
+
+Step 1: **Create a traditional HelmRepository**
+
+```yaml
+apiVersion: helm-operator.ketches.cn/v1alpha1
+kind: HelmRepository
+metadata:
+  name: bitnami
+  namespace: default
+spec:
+  url: "https://charts.bitnami.com/bitnami"
+  type: "helm"
+  interval: "1h"
+  valuesConfigMapPolicy: disabled  # Recommended
+```
+
+Step 2: **Deploy a Release**
+
+```yaml
+apiVersion: helm-operator.ketches.cn/v1alpha1
+kind: HelmRelease
+metadata:
+  name: nginx
+  namespace: default
+spec:
+  chart:
+    name: nginx
+    version: "~15.0.0"  # Track minor versions
+    repository:
+      name: bitnami
+      namespace: default
+  
+  release:
+    name: nginx
+    namespace: default
+  
+  values: |
+    service:
+      type: LoadBalancer
+  
+  rollback:
+    enabled: true
+  
+  upgrade:
+    wait: true
+```
+
+#### Check Status and Events
+
+```bash
+# Check repository sync status
+kubectl describe helmrepository ghcr-charts
 
 # Check release status
-kubectl get helmrelease nginx
+kubectl get helmrelease my-app -o yaml
+
+# View events
+kubectl get events --field-selector involvedObject.name=my-app
+
+# Check Prometheus metrics (if configured)
+kubectl port-forward -n ketches svc/helm-operator-metrics 8080:8080
+curl http://localhost:8080/metrics | grep helm_
 ```
 
 ## Development
@@ -196,179 +308,399 @@ make docker-build-local IMG=helm-operator VERSION=dev
 make deploy
 ```
 
-## Configuration
+## Configuration Examples
 
-### HelmRepository Configuration
+### OCI Registry with Authentication (Recommended)
+
+#### Public OCI Registry (GitHub Container Registry)
 
 ```yaml
 apiVersion: helm-operator.ketches.cn/v1alpha1
 kind: HelmRepository
 metadata:
-  name: private-repo
+  name: ghcr-public
 spec:
-  url: "https://private.charts.example.com"
+  url: "oci://ghcr.io/myorg/charts"
+  type: "oci"
   interval: "1h"
-  auth:
-    basic:
-      secretRef:
-        name: repo-credentials
-        namespace: default
-  timeout: "10m"
+  valuesConfigMapPolicy: disabled
 ```
 
-### HelmRelease Configuration
-
-```yaml
-apiVersion: helm-operator.ketches.cn/v1alpha1
-kind: HelmRelease
-metadata:
-  name: my-app
-spec:
-  chart:
-    name: my-app
-    version: "1.0.0"
-    repository:
-      name: my-repo
-      namespace: default
-  release:
-    name: my-app-release
-    namespace: production
-    createNamespace: true
-  values: |
-    image:
-      tag: "v1.0.0"
-    resources:
-      requests:
-        cpu: "100m"
-        memory: "128Mi"
-  install:
-    timeout: "10m"
-    wait: true
-  upgrade:
-    timeout: "10m"
-    wait: true
-```
-
-## Examples
-
-### Private Repository with Authentication
+#### Private OCI Registry with Authentication
 
 ```yaml
 # Create authentication secret
 apiVersion: v1
 kind: Secret
 metadata:
-  name: private-repo-auth
-type: Opaque
+  name: oci-registry-auth
+  namespace: default
+type: kubernetes.io/dockerconfigjson
 data:
-  username: dXNlcm5hbWU=  # base64 encoded
-  password: cGFzc3dvcmQ=  # base64 encoded
+  .dockerconfigjson: <base64-encoded-docker-config>
 ---
-# Private repository with authentication
 apiVersion: helm-operator.ketches.cn/v1alpha1
 kind: HelmRepository
 metadata:
-  name: private-repo
+  name: acr-private
 spec:
-  url: "https://private.charts.example.com"
+  url: "oci://myregistry.azurecr.io/helm"
+  type: "oci"
   auth:
-    basic:
-      secretRef:
-        name: private-repo-auth
+    secretRef:
+      name: oci-registry-auth
+  interval: "1h"
+  valuesConfigMapPolicy: disabled
 ```
 
-### Complex Release Configuration
+### Production-Ready Release with Auto-Rollback
 
 ```yaml
 apiVersion: helm-operator.ketches.cn/v1alpha1
 kind: HelmRelease
 metadata:
-  name: complex-app
+  name: production-app
+  namespace: production
 spec:
   chart:
-    name: my-app
-    version: "2.0.0"
-    repository:
-      name: my-repo
+    name: myapp
+    version: "^2.0.0"  # Auto-update to compatible versions
+    ociRepository: "oci://ghcr.io/company/charts/myapp"
+  
   release:
-    name: complex-app
+    name: production-app
     namespace: production
     createNamespace: true
+  
   values: |
-    # Application configuration
-    app:
-      name: "complex-app"
-      version: "2.0.0"
+    replicaCount: 5
     
-    # Replica count
-    replicaCount: 3
-    
-    # Image configuration
     image:
-      repository: "my-registry/my-app"
-      tag: "v2.0.0"
-      pullPolicy: "IfNotPresent"
+      repository: company.azurecr.io/myapp
+      tag: "2.1.5"
+      pullPolicy: IfNotPresent
     
-    # Service configuration
-    service:
-      type: "ClusterIP"
-      port: 8080
-      targetPort: 8080
-    
-    # Ingress configuration
-    ingress:
-      enabled: true
-      className: "nginx"
-      hosts:
-        - host: "app.example.com"
-          paths:
-            - path: "/"
-              pathType: "Prefix"
-      tls:
-        - secretName: "app-tls"
-          hosts:
-            - "app.example.com"
-    
-    # Resource limits
     resources:
       limits:
-        cpu: "1000m"
-        memory: "1Gi"
+        cpu: 2000m
+        memory: 2Gi
       requests:
-        cpu: "500m"
-        memory: "512Mi"
+        cpu: 500m
+        memory: 512Mi
     
-    # Environment variables
-    env:
-      - name: "APP_ENV"
-        value: "production"
-      - name: "DB_HOST"
-        value: "postgres.database.svc.cluster.local"
+    autoscaling:
+      enabled: true
+      minReplicas: 5
+      maxReplicas: 20
+      targetCPUUtilizationPercentage: 70
+    
+    ingress:
+      enabled: true
+      className: nginx
+      hosts:
+        - host: app.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+      tls:
+        - secretName: app-tls
+          hosts:
+            - app.example.com
   
-  # Install configuration
+  # Critical: Enable automatic rollback
+  rollback:
+    enabled: true
+    toRevision: 0       # Rollback to previous version
+    timeout: "5m"
+    wait: true
+    cleanupOnFail: true
+  
   install:
     timeout: "15m"
     wait: true
     waitForJobs: true
   
-  # Upgrade configuration
   upgrade:
     timeout: "15m"
-    wait: true
+    wait: true          # Required for auto-rollback detection
+    waitForJobs: true
     cleanupOnFail: true
   
-  # Dependencies
-  dependsOn:
-    - name: "postgres"
-      namespace: "database"
+  # Check for updates every 12 hours
+  interval: "12h"
+```
+
+### Traditional HTTP Repository Configuration
+
+```yaml
+apiVersion: helm-operator.ketches.cn/v1alpha1
+kind: HelmRepository
+metadata:
+  name: bitnami
+spec:
+  url: "https://charts.bitnami.com/bitnami"
+  type: "helm"
+  interval: "1h"
+  timeout: "10m"
+  
+  # ConfigMap optimization (recommended)
+  valuesConfigMapPolicy: disabled
+  # Or use lazy policy for latest versions only
+  # valuesConfigMapPolicy: lazy
+  # valuesConfigMapRetention: "168h"  # 7 days
+```
+
+### Private Repository with Basic Auth
+
+```yaml
+# Create auth secret
+apiVersion: v1
+kind: Secret
+metadata:
+  name: private-repo-auth
+type: Opaque
+data:
+  username: dXNlcm5hbWU=  # base64: username
+  password: cGFzc3dvcmQ=  # base64: password
+---
+apiVersion: helm-operator.ketches.cn/v1alpha1
+kind: HelmRepository
+metadata:
+  name: private-repo
+spec:
+  url: "https://charts.company.com"
+  auth:
+    basic:
+      secretRef:
+        name: private-repo-auth
+  timeout: "10m"
+  valuesConfigMapPolicy: disabled
+```
+
+### Version Constraint Examples
+
+```yaml
+apiVersion: helm-operator.ketches.cn/v1alpha1
+kind: HelmRelease
+metadata:
+  name: app-with-constraints
+spec:
+  chart:
+    name: myapp
+    # Semantic version constraints
+    version: "^1.2.0"     # >= 1.2.0, < 2.0.0 (recommended for production)
+    # version: "~1.2.0"   # >= 1.2.0, < 1.3.0 (conservative)
+    # version: ">=1.0.0, <2.0.0"  # Range
+    # version: "1.2.3"    # Exact version (most stable)
+    # version: "latest"   # Always latest (dev only)
+    ociRepository: "oci://ghcr.io/charts/myapp"
+  
+  release:
+    name: my-app
+    namespace: default
+  
+  # Rollback protection
+  rollback:
+    enabled: true
+```
+
+## Advanced Features
+
+### Prometheus Metrics
+
+The operator exports comprehensive metrics for monitoring:
+
+```yaml
+# ServiceMonitor for Prometheus Operator
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: helm-operator
+  namespace: ketches
+spec:
+  selector:
+    matchLabels:
+      app: helm-operator
+  endpoints:
+  - port: metrics
+    interval: 30s
+```
+
+**Available Metrics:**
+
+- `helm_repository_sync_duration_seconds` - Repository sync latency
+- `helm_repository_sync_total` - Repository sync count by status
+- `helm_release_operation_duration_seconds` - Release operation latency
+- `helm_release_rollbacks_total` - Automatic rollback count
+- `helm_operator_reconcile_duration_seconds` - Controller performance
+
+### Automatic Rollback Scenarios
+
+```yaml
+# Scenario 1: Rollback on timeout
+spec:
+  rollback:
+    enabled: true
+  upgrade:
+    timeout: "5m"
+    wait: true  # Pod doesn't become ready in 5m → auto rollback
+
+# Scenario 2: Rollback on health check failure
+spec:
+  rollback:
+    enabled: true
+  upgrade:
+    wait: true
+    waitForJobs: true  # Job fails → auto rollback
+
+# Scenario 3: Rollback to specific revision
+spec:
+  rollback:
+    enabled: true
+    toRevision: 3  # Rollback to revision 3 if upgrade fails
+```
+
+### 📦 Multi-Cloud OCI Examples
+
+#### GitHub Container Registry (GHCR)
+
+```yaml
+apiVersion: helm-operator.ketches.cn/v1alpha1
+kind: HelmRepository
+metadata:
+  name: ghcr-charts
+spec:
+  url: "oci://ghcr.io/myorg/charts"
+  type: "oci"
+  valuesConfigMapPolicy: disabled
+---
+apiVersion: helm-operator.ketches.cn/v1alpha1
+kind: HelmRelease
+metadata:
+  name: my-app
+spec:
+  chart:
+    name: myapp
+    version: "^1.0.0"
+    ociRepository: "oci://ghcr.io/myorg/charts/myapp"
+  rollback:
+    enabled: true
+```
+
+#### Azure Container Registry (ACR)
+
+```yaml
+# Create ACR auth secret
+kubectl create secret docker-registry acr-auth \
+  --docker-server=myregistry.azurecr.io \
+  --docker-username=<username> \
+  --docker-password=<password>
+
+---
+apiVersion: helm-operator.ketches.cn/v1alpha1
+kind: HelmRepository
+metadata:
+  name: acr-charts
+spec:
+  url: "oci://myregistry.azurecr.io/helm"
+  type: "oci"
+  auth:
+    secretRef:
+      name: acr-auth
+---
+apiVersion: helm-operator.ketches.cn/v1alpha1
+kind: HelmRelease
+metadata:
+  name: acr-app
+spec:
+  chart:
+    name: myapp
+    version: "~2.0.0"
+    ociRepository: "oci://myregistry.azurecr.io/helm/myapp"
+  rollback:
+    enabled: true
+```
+
+#### Google Artifact Registry (GAR)
+
+```yaml
+apiVersion: helm-operator.ketches.cn/v1alpha1
+kind: HelmRepository
+metadata:
+  name: gar-charts
+spec:
+  url: "oci://us-docker.pkg.dev/project-id/helm-charts"
+  type: "oci"
+  auth:
+    secretRef:
+      name: gar-auth  # GCP service account key
+---
+apiVersion: helm-operator.ketches.cn/v1alpha1
+kind: HelmRelease
+metadata:
+  name: gar-app
+spec:
+  chart:
+    name: myapp
+    ociRepository: "oci://us-docker.pkg.dev/project-id/helm-charts/myapp"
+  rollback:
+    enabled: true
+```
+
+## Monitoring & Observability
+
+### Grafana Dashboard
+
+Example queries for monitoring:
+
+```promql
+# Repository sync success rate
+sum(rate(helm_repository_sync_total{status="success"}[5m])) 
+  / 
+sum(rate(helm_repository_sync_total[5m]))
+
+# Release operation P95 latency
+histogram_quantile(0.95, 
+  sum(rate(helm_release_operation_duration_seconds_bucket[5m])) 
+  by (le, operation))
+
+# Automatic rollback frequency
+sum(increase(helm_release_rollbacks_total[1h])) by (release, status)
+
+# Active releases
+count(helm_release_info{status="deployed"})
+```
+
+### Alert Rules
+
+```yaml
+groups:
+- name: helm-operator
+  rules:
+  - alert: HelmRepositorySyncFailed
+    expr: rate(helm_repository_sync_errors_total[5m]) > 0
+    for: 5m
+    annotations:
+      summary: "Repository {{ $labels.repository }} sync failing"
+  
+  - alert: HelmReleaseOperationFailed
+    expr: rate(helm_release_operation_errors_total[5m]) > 0
+    for: 2m
+    annotations:
+      summary: "Release {{ $labels.release }} operation failing"
+  
+  - alert: FrequentRollbacks
+    expr: sum(increase(helm_release_rollbacks_total[1h])) by (release) > 3
+    annotations:
+      summary: "Release {{ $labels.release }} has frequent rollbacks"
 ```
 
 ## API Reference
 
 For detailed API documentation, see:
 
-- [HelmRepository API](.dev/api-reference.md#helmrepository)
-- [HelmRelease API](.dev/api-reference.md#helmrelease)
+- [HelmRepository API](docs/api-reference.md#helmrepository)
+- [HelmRelease API](docs/api-reference.md#helmrelease)
 
 ## Contributing
 
@@ -392,14 +724,3 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 - 📖 [Documentation](docs/)
 - 🐛 [Issue Tracker](https://github.com/ketches/helm-operator/issues)
 - 💬 [Discussions](https://github.com/ketches/helm-operator/discussions)
-
-## Roadmap
-
-- [x] HelmRepository management
-- [x] HelmRelease management
-- [ ] OCI repository support
-- [ ] Webhook validation
-
----
-
-**Note**: This project is under active development. APIs may change before v1.0.0 release.
