@@ -609,28 +609,3 @@ make test-e2e
 ## 许可证
 
 本项目采用 Apache 2.0 许可证。详见 [LICENSE](LICENSE) 文件。
-
-## 高级开发 (v0.3.0+)
-
-### 测试最佳实践
-
-```bash
-# 运行所有测试
-make test
-
-# 运行特定包的测试
-go test ./internal/utils/... -v
-go test ./internal/helm/... -v
-
-# 运行并生成覆盖率报告
-go test ./... -cover -coverprofile=coverage.out
-go tool cover -html=coverage.out
-```
-
-### 性能优化建议
-
-1. **使用 OCI 仓库**: 比传统 HTTP 仓库快 30-50%
-2. **禁用 ConfigMaps**: 设置 `valuesConfigMapPolicy: disabled` (资源减少 99.5%)
-3. **启用回滚**: 使用 `rollback.enabled: true` 保护生产环境
-4. **使用 SemVer 约束**: 用 `^` 或 `~` 实现自动兼容更新
-5. **调整间隔**: 根据需要调整同步频率
